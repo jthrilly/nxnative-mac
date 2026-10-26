@@ -61,6 +61,8 @@ let scriptOptionLines = """
     ap.add_argument('--platform', choices=('ios', 'mac', 'mac-app'), help='')
     ap.add_argument('--progress', choices=('auto', 'bar', 'lines', 'json', 'off'), help='')
     ap.add_argument('--ignore-settings', action='store_true', help='')
+    ap.add_argument('--prepare-xcode', action='store_true', help='')
+    ap.add_argument('--team-id', help='')
     """
 
 /// A folder the repository check takes for nxnative: the NSP script (with the given argument lines) and nx_extract's Program.cs

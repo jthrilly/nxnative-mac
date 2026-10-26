@@ -217,7 +217,8 @@ private struct LibraryFiles: Equatable {
     }
 
     @MainActor static func urls(_ model: AppModel) -> [URL] {
-        model.library.flatMap { entry in [entry.logFile, entry.saveFolder] + (entry.record.map { [$0.folderURL] } ?? []) } + model.records.map(\.folderURL)
+        model.library.flatMap { entry in [entry.logFile, entry.saveFolder] + (entry.record.map { [$0.folderURL] } ?? []) + (entry.xcodeWorkspace.map { [$0] } ?? []) }
+            + model.records.map(\.folderURL)
     }
 }
 

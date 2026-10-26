@@ -553,6 +553,31 @@ struct LanguagePicker: View {
     }
 }
 
+/// What a conversion makes: a Mac app, or an Xcode project for iPhone and iPad
+struct OutputPicker: View {
+    private let title: String
+    @Binding private var selection: ConversionOutput
+
+    init(_ title: String, selection: Binding<ConversionOutput>) {
+        self.title = title; _selection = selection
+    }
+
+    var body: some View {
+        Picker(title, selection: $selection) {
+            ForEach(ConversionOutput.allCases, id: \.self) { Text($0.title).tag($0) }
+        }
+    }
+}
+
+extension ConversionOutput {
+    var title: String {
+        switch self {
+        case .macApp: "Mac App"
+        case .xcodeProject: "iOS Xcode Project"
+        }
+    }
+}
+
 // MARK: - Model helpers for views
 
 extension String {
@@ -590,6 +615,11 @@ extension PortRecord {
 extension LibraryEntry {
     var logFile: URL { InstalledAppScanner.logFile(titleID: app.titleID) }
     var saveFolder: URL { InstalledAppScanner.saveFolder(titleID: app.titleID) }
+    /// A Mac app's icon; an Xcode project's game art, the icon its folder's extraction holds
+    var artwork: ArtworkSource { record.flatMap { r in isXcodeProject ? .gameFolder(r.folderURL, titleID: app.titleID) : nil } ?? .app(app.url) }
+    var artworkShape: ArtworkShape { isXcodeProject ? .game : .app }
+    /// What it is, for VoiceOver and the inspector
+    var kindText: String { isXcodeProject ? "iOS Xcode project" : "Mac app" }
 }
 
 extension NXNativeVersion {

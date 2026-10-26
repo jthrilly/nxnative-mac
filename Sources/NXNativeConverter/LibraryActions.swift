@@ -1,5 +1,6 @@
 // What can be done in the Library, in one place: a game app's actions (its tile's context menu, the toolbar, the inspector and the Library menu) and
-// the actions on selected history records (the table's context menu and the Library menu)
+// the actions on selected history records (the table's context menu and the Library menu). A game prepared as an Xcode project plays by opening its
+// workspace in Xcode, and has no log or save folder on this Mac
 import AppKit
 import ConverterCore
 import SwiftUI
@@ -27,13 +28,32 @@ enum LibraryAction: Hashable {
         }
     }
 
-    /// Rebuild needs the record of the conversion that built the app
-    func applies(to entry: LibraryEntry) -> Bool { self != .rebuild || entry.record != nil }
+    /// The title for this entry: an Xcode project opens in Xcode, and is prepared again rather than rebuilt
+    func title(for entry: LibraryEntry) -> String {
+        guard entry.isXcodeProject else { return title }
+        switch self {
+        case .play: return "Open in Xcode"
+        case .rebuild: return "Prepare Again with Current nxnative"
+        default: return title
+        }
+    }
+
+    func symbol(for entry: LibraryEntry) -> String { entry.isXcodeProject && self == .play ? "hammer.fill" : symbol }
+
+    /// Rebuild needs the record of the conversion that built the app; an Xcode project's log and saves are on the device
+    func applies(to entry: LibraryEntry) -> Bool {
+        switch self {
+        case .rebuild: entry.record != nil
+        case .openLog, .openSaveFolder: !entry.isXcodeProject
+        case .play, .showInFinder: true
+        }
+    }
 
     /// `files` holds the Library's files that exist (WindowState.libraryFiles)
     func isEnabled(for entry: LibraryEntry, files: Set<URL>) -> Bool {
         switch self {
-        case .play, .showInFinder: true
+        case .play: entry.xcodeWorkspace.map { files.contains($0) } ?? true
+        case .showInFinder: true
         case .rebuild: entry.record.map { files.contains($0.folderURL) } ?? false
         case .openLog: files.contains(entry.logFile)
         case .openSaveFolder: files.contains(entry.saveFolder)
@@ -43,9 +63,13 @@ enum LibraryAction: Hashable {
     func help(for entry: LibraryEntry, files: Set<URL>) -> String {
         let enabled = isEnabled(for: entry, files: files)
         switch self {
-        case .play: return "Open \(entry.app.name)"
-        case .showInFinder: return "Show the app in Finder"
-        case .rebuild: return enabled ? "Convert the game folder again with the current nxnative" : "The game folder is not there"
+        case .play:
+            guard let workspace = entry.xcodeWorkspace else { return "Open \(entry.app.name)" }
+            return enabled ? "Open \(workspace.lastPathComponent) in Xcode, then choose the game's scheme and your iPhone or iPad and Run" : "The workspace is not there: \(workspace.path)"
+        case .showInFinder: return entry.isXcodeProject ? "Show the Xcode project in Finder" : "Show the app in Finder"
+        case .rebuild:
+            guard enabled else { return "The game folder is not there" }
+            return entry.isXcodeProject ? "Prepare the Xcode project again with the current nxnative" : "Convert the game folder again with the current nxnative"
         case .openLog: return enabled ? entry.logFile.path : "The game has not written a log yet"
         case .openSaveFolder: return enabled ? entry.saveFolder.path : "The game has no save folder yet"
         }
@@ -53,7 +77,7 @@ enum LibraryAction: Hashable {
 
     @MainActor func perform(on entry: LibraryEntry, in model: AppModel) {
         switch self {
-        case .play: NSWorkspace.shared.open(entry.app.url)
+        case .play: NSWorkspace.shared.open(entry.xcodeWorkspace ?? entry.app.url)
         case .showInFinder: NSWorkspace.shared.activateFileViewerSelecting([entry.app.url])
         case .rebuild: if let record = entry.record { model.rebuild(record) }
         case .openLog: NSWorkspace.shared.open(entry.logFile)
@@ -106,7 +130,7 @@ struct LibraryEntryMenuItems: View {
         ForEach(LibraryAction.menu.indices, id: \.self) { index in
             if index > 0 { Divider() }
             ForEach(LibraryAction.menu[index].filter { $0.applies(to: entry) }, id: \.self) { action in
-                Button(action.title) { action.perform(on: entry, in: model) }
+                Button(action.title(for: entry)) { action.perform(on: entry, in: model) }
                     .disabled(!action.isEnabled(for: entry, files: window.libraryFiles))
                     .help(action.help(for: entry, files: window.libraryFiles))
             }

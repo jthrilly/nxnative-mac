@@ -83,7 +83,7 @@ private struct HistoryResult: View {
         case .cancelled: return (message ?? "Cancelled", message ?? "Cancelled", .secondary)
         case .succeeded:
             if record.options.surveyOnly { return ("Survey only", "Survey only", .secondary) }
-            guard let path = record.installedAppPath ?? record.builtAppPath else { return ("", "", .secondary) }
+            guard let path = record.installedAppPath ?? record.builtAppPath ?? record.xcodeProjectPath else { return ("", "", .secondary) }
             return (path.abbreviatedPath, path, .primary)
         }
     }

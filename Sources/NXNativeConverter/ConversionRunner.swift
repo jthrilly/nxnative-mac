@@ -1,5 +1,6 @@
 // One conversion: checks, build_ipa_from_nsp.py --platform mac-app --progress json in its own process group (output folded into the job's BuildState in
-// batches), then the install into the Applications folder, the library record and the notification. A survey-only run ends at the survey (nothing is
+// batches), then the install into the Applications folder, the library record and the notification. An Xcode project run (--platform ios --prepare-xcode)
+// installs nothing: it ends at the project, which the Library lists and opens in Xcode. A survey-only run ends at the survey (nothing is
 // installed), unless the script found the game to be a known build under another title ID and made the app instead; a job from a port runs the port
 // worktree's script. Every run that started is recorded
 import AppKit
@@ -23,7 +24,7 @@ extension AppModel {
             return conclude(job, .failed, "Python 3 was not found on the shell's PATH. Install it or choose an interpreter on the Setup page.")
         }
         let support = ScriptSupport(repository: repo)
-        if let missing = support?.missing, !missing.isEmpty {
+        if let missing = support?.missing(for: job.options.output), !missing.isEmpty {
             return conclude(job, .failed, "The NSP script in \(repo.path) is older than this app: it has no \(missing.joined(separator: " or ")). "
                             + "Update nxnative on the nxnative page, or choose a newer checkout in Settings.")
         }
@@ -35,7 +36,8 @@ extension AppModel {
         if options.signingIdentity.isEmpty { options.signingIdentity = settings.signingIdentity }
         let ignoreSettings = support?.ignoreSettings ?? true
         if !ignoreSettings { job.note("This nxnative's script has no --ignore-settings: the Settings block at its top applies to this build too.") }
-        let arguments = ConversionCommand.arguments(script: script, folder: job.folder, keys: keys, options: options, ignoreSettings: ignoreSettings)
+        let teamID = settings.teamID.trimmingCharacters(in: .whitespaces)
+        let arguments = ConversionCommand.arguments(script: script, folder: job.folder, keys: keys, options: options, ignoreSettings: ignoreSettings, teamID: teamID)
         var variables = env.variables
         variables["PYTHONUNBUFFERED"] = "1"
         job.note("$ " + ([python] + arguments).map(Shell.quoteIfNeeded).joined(separator: " "))
@@ -66,6 +68,15 @@ extension AppModel {
             job.note("Survey written: \(survey.path)")
             return conclude(job, .succeeded, nil)
         }
+        if options.output == .xcodeProject {
+            guard let prepared = preparedProject(of: job) else {
+                return conclude(job, .failed, "The Xcode project was prepared, but it was not found in \(job.folder.path).")
+            }
+            job.xcodeProject = prepared.project; job.xcodeWorkspace = prepared.workspace
+            job.note("Xcode project: \(prepared.project.path)")
+            job.note("Workspace: \(prepared.workspace.path) (Open in Xcode, choose the game's scheme and your iPhone or iPad, then Run)")
+            return conclude(job, .succeeded, nil)
+        }
         guard let app = builtApp(of: job) else {
             return conclude(job, .failed, "The conversion finished, but the app it made was not found in \(job.folder.path).")
         }
@@ -85,6 +96,22 @@ extension AppModel {
             }
         }
         return existing(job.folder.appendingPathComponent(job.name + ".app").path)
+    }
+
+    /// The project and workspace the script's "game project:" and "ready:" messages name, else where it makes them
+    private func preparedProject(of job: ConversionJob) -> (project: URL, workspace: URL)? {
+        let fm = FileManager.default
+        func named(_ label: String) -> URL? {
+            for line in job.build.log.suffix(100).reversed() where line.kind == .info {
+                if let path = ConversionCommand.path(after: label, inMessage: line.text) { return URL(fileURLWithPath: path) }
+            }
+            return nil
+        }
+        guard let titleID = job.titleID else { return nil }
+        let project = named("game project") ?? ConversionCommand.xcodeProject(folder: job.folder, titleID: titleID)
+        let workspace = named("ready") ?? ConversionCommand.xcodeWorkspace(folder: job.folder)
+        guard fm.fileExists(atPath: project.path), fm.fileExists(atPath: workspace.path) else { return nil }
+        return (project, workspace)
     }
 
     private func install(_ job: ConversionJob, app: URL) async {
@@ -136,12 +163,14 @@ extension AppModel {
             id: UUID(), folder: job.folder.path, titleID: job.titleID, gameName: job.name, gameVersion: nonEmpty(game?.version),
             package: nonEmpty(game?.package) ?? nonEmpty(job.options.package), profile: nonEmpty(game?.profile) ?? profile,
             provisional: game?.provisional ?? (job.match == .noProfile), derived: game?.derived ?? false,
-            builtAppPath: job.builtApp?.path, installedAppPath: job.installedApp?.path, startedAt: job.startedAt ?? Date(), finishedAt: job.finishedAt,
+            builtAppPath: job.builtApp?.path, installedAppPath: job.installedApp?.path, xcodeProjectPath: job.xcodeProject?.path,
+            xcodeWorkspacePath: job.xcodeWorkspace?.path, startedAt: job.startedAt ?? Date(), finishedAt: job.finishedAt,
             status: status, message: message, nxnative: job.nxnative, options: job.options))
         Task { await refreshLibrary() }
         guard settings.notifyWhenDone else { return }
         switch state {
         case .succeeded where job.options.surveyOnly: Notifier.post(title: "\(job.name): survey written", body: job.surveyWritten?.path ?? "In the game folder.")
+        case .succeeded where job.xcodeProject != nil: Notifier.post(title: "\(job.name): Xcode project ready", body: "Open it in Xcode from the Library to run it on your iPhone or iPad.")
         case .succeeded: Notifier.post(title: "\(job.name) is ready", body: job.installedApp.map { "Installed in \($0.deletingLastPathComponent().path)." } ?? "The app is in the game folder.")
         case .failed: Notifier.post(title: "\(job.name) could not be converted", body: message ?? "See the log for details.")
         default: break

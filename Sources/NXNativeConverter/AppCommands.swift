@@ -17,7 +17,7 @@ struct AppCommands: Commands {
             Button("Add Game Folder…") { show(); model.chooseGameFolders() }
                 .keyboardShortcut("o")
             Divider()
-            Button("Play") { show(); play?() }
+            Button(playsXcodeProject ? "Open in Xcode" : "Play") { show(); play?() }
                 .disabled(play == nil)
             Button("Show in Finder") { show(); showInFinder?() }
                 .keyboardShortcut("r", modifiers: [.shift, .command])
@@ -42,10 +42,21 @@ struct AppCommands: Commands {
 
     // MARK: File
 
+    /// What File › Play opens is an Xcode project: it reads Open in Xcode
+    private var playsXcodeProject: Bool {
+        switch model.shownPage {
+        case .convert: model.shownJob.map { JobAction.openInXcode.applies(to: $0, in: model) } ?? false
+        case .library: selectedEntry?.isXcodeProject ?? false
+        case .ports, .repository, .setup: false
+        }
+    }
+
     private var play: (() -> Void)? {
         switch model.shownPage {
         case .convert:
-            guard let job = model.shownJob, JobAction.play.applies(to: job, in: model) else { return nil }
+            guard let job = model.shownJob else { return nil }
+            if JobAction.openInXcode.applies(to: job, in: model) { return { JobAction.openInXcode.perform(on: job, in: model) } }
+            guard JobAction.play.applies(to: job, in: model) else { return nil }
             return { JobAction.play.perform(on: job, in: model) }
         case .library:
             guard let entry = selectedEntry else { return nil }
@@ -156,7 +167,7 @@ struct AppCommands: Commands {
     private func libraryItem(_ action: LibraryAction) -> some View {
         let entry = selectedEntry
         let enabled = entry.map { action.applies(to: $0) && action.isEnabled(for: $0, files: window.libraryFiles) } ?? false
-        return Button(action.title) {
+        return Button(entry.map(action.title(for:)) ?? action.title) {
             show()
             if let entry { action.perform(on: entry, in: model) }
         }

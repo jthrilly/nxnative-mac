@@ -88,10 +88,11 @@ How it runs:
 The pages:
 
 - **Convert**: the queue of game folders. A folder is scanned the way the script scans it (title ID, versions, DLC), then matched with nxnative's profiles: a
-  tested version, an untested version, or no profile. Each game has its options (language, version, app name, bundle ID, damaged files, env file), its stages
-  with counts and an estimate of the time left, and the log.
-- **Library**: the nxnative game apps in the install folder, `/Applications` and `~/Applications`. Each shows the nxnative commit that built it and how far the
-  checkout has moved since, and can be rebuilt with the current checkout. The Library also keeps the history of every conversion.
+  tested version, an untested version, or no profile. Each game has its options (what to make, language, version, app name, bundle ID, damaged files, env
+  file), its stages with counts and an estimate of the time left, and the log.
+- **Library**: the nxnative game apps in the install folder, `/Applications` and `~/Applications`, and the games prepared as Xcode projects. Each shows the
+  nxnative commit that built it and how far the checkout has moved since, and can be rebuilt with the current checkout. The Library also keeps the history of
+  every conversion.
 - **Ports**: the games handed to a coding agent (see [Ports](#ports)).
 - **nxnative**: the checkout (see [Choosing the nxnative checkout](#choosing-the-nxnative-checkout)).
 - **Setup**: what a conversion needs, each item with its fix. Install Missing runs the fixes that need neither a password nor administrator rights. The items:
@@ -108,6 +109,25 @@ chooses Move, Copy or Don't install.
   any other app of that name stops the install and is left alone.
 - **Saves and logs:** they stay where nxnative's launcher keeps them, `~/Library/Application Support/nxnative/<title ID>/` and
   `~/Library/Logs/nxnative/<title ID>.log`.
+
+### iPhone and iPad: an Xcode project
+
+A game can be made into an Xcode project for iPhone and iPad instead of a Mac app: choose **iOS Xcode Project** under **Make** in the game's options, or make it
+the default for new games in Settings › Conversion. The app runs the script with `--platform ios --prepare-xcode`, which:
+
+- extracts and rewrites the game and builds its iOS shaders, as for an IPA;
+- writes the project to `<folder>/<title ID>_build/xcode/DmIOS.xcodeproj`;
+- adds it as a scheme, named after the game, to `NxNative.xcworkspace` beside the game folder.
+
+Nothing is installed, signed or packed into an IPA. The Library lists the project, with an iPhone badge on its art, and **Open in Xcode** opens the workspace.
+There, choose the game's scheme and your iPhone or iPad, and Run: Xcode signs the app and installs it.
+
+- **Team:** Settings › Conversion › Team ID is passed as `--team-id` to every Xcode project. Empty keeps the team chosen in Xcode's Signing & Capabilities.
+- **Bundle ID:** automatic: the ID the project had, else `org.nxnative.<title ID>`. The game's Bundle ID option overrides it.
+- **Not portable:** the project builds from the extracted game files and links the nxnative checkout's sources, so it works on this Mac while the game's drive
+  is connected. The first Xcode build copies the whole game into the app.
+
+It needs an nxnative checkout whose script has `--prepare-xcode`.
 
 ### Ports
 

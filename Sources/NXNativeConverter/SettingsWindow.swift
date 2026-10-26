@@ -1,4 +1,4 @@
-// The Settings window: General (where nxnative, prod.keys and Python are), Conversion (defaults for new jobs), Install (where the app goes, and how) and
+// The Settings window: General (where nxnative, prod.keys and Python are), Conversion (defaults for new jobs, signing), Install (where the app goes, and how) and
 // Agents (the coding agents that attempt ports, their defaults, and where the ports' worktrees go). The pane shown is the SettingsTab user default, so
 // the last pane reopens and a page can open Settings on a given pane by writing it first
 import AppKit
@@ -67,15 +67,26 @@ private struct ConversionPane: View {
         @Bindable var settings = model.settings
         Form {
             Section {
+                OutputPicker("Make", selection: $settings.defaultOutput)
                 LanguagePicker("Default language", selection: $settings.defaultLanguage)
             } footer: {
-                Text("The game's language for new conversions; each game can use another.").foregroundStyle(.secondary)
+                Text("What new conversions make, and the game's language; each game can use others.").foregroundStyle(.secondary)
             }
             Section {
                 TextField("Signing identity", text: $settings.signingIdentity, prompt: Text("Ad-hoc"))
             } footer: {
-                Text("A codesign identity for the app (--mac-sign), such as “Developer ID Application: …”. "
+                Text("A codesign identity for Mac apps (--mac-sign), such as “Developer ID Application: …”. "
                      + "Empty signs ad-hoc, which is enough on this Mac.")
+                    .foregroundStyle(.secondary)
+            }
+            Section {
+                TextField("Team ID", text: $settings.teamID, prompt: Text("Chosen in Xcode"))
+                    .font(.mono)
+            } header: {
+                Text("Xcode Projects")
+            } footer: {
+                Text("The Apple developer team that signs games prepared as Xcode projects (--team-id), such as “A1B2C3D4E5”: Membership in your "
+                     + "Apple Developer account lists it. Empty keeps the team chosen in Xcode's Signing & Capabilities.")
                     .foregroundStyle(.secondary)
             }
             Section {

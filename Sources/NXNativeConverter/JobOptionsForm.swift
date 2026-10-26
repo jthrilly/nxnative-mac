@@ -13,9 +13,11 @@ struct JobOptionsForm: View {
         @Bindable var job = job
         Form {
             Section {
+                OutputPicker("Make", selection: $job.options.output)
+                    .help("A Mac app, installed like any other, or an Xcode project for iPhone and iPad that Xcode signs and installs on your device")
                 if job.match == .noProfile {
                     Toggle("Survey only", isOn: $job.options.surveyOnly)
-                        .help("Write the survey and the provisional profile, and stop before packing an app")
+                        .help("Write the survey and the provisional profile, and stop before making the app or the Xcode project")
                 }
                 LanguagePicker("Language", selection: $job.options.language)
                 DisclosureGroup("Advanced", isExpanded: $advanced) {
@@ -38,7 +40,14 @@ struct JobOptionsForm: View {
             } header: {
                 Text("Options")
             } footer: {
-                Text("Options can be changed until the conversion starts.").foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: Space.xs) {
+                    if job.options.output == .xcodeProject {
+                        Text("The project goes in the game folder and is added to NxNative.xcworkspace beside it. Its signing team is "
+                             + "Settings › Conversion › Team ID.")
+                    }
+                    Text("Options can be changed until the conversion starts.")
+                }
+                .foregroundStyle(.secondary)
             }
             Section("Game Files") {
                 ForEach(job.scan.files) { file in

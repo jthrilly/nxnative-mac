@@ -5,7 +5,7 @@ import ConverterCore
 import SwiftUI
 
 enum JobAction: Hashable {
-    case start, cancel, retry, convert, play, chooseAnotherFolder, survey, port, openSurvey, showProvisionalProfile, showInFinder, showLogs, remove,
+    case start, cancel, retry, convert, play, openInXcode, chooseAnotherFolder, survey, port, openSurvey, showProvisionalProfile, showInFinder, showLogs, remove,
          removeFinished
 
     var title: String {
@@ -15,6 +15,7 @@ enum JobAction: Hashable {
         case .retry: "Retry"
         case .convert: "Convert"
         case .play: "Play"
+        case .openInXcode: "Open in Xcode"
         case .chooseAnotherFolder: "Choose Another Folder…"
         case .survey: "Survey Only"
         case .port: "Port with an Agent…"
@@ -31,6 +32,7 @@ enum JobAction: Hashable {
     fileprivate var symbol: String {
         switch self {
         case .start, .play: "play.fill"
+        case .openInXcode: "hammer.fill"
         case .cancel: "stop.fill"
         case .retry: "arrow.clockwise"
         case .convert: "arrow.down.app"
@@ -63,6 +65,7 @@ enum JobAction: Hashable {
         case .retry: job.canRetry
         case .convert: job.state == .succeeded && job.options.surveyOnly
         case .play: job.app != nil
+        case .openInXcode: job.xcodeWorkspace != nil
         case .chooseAnotherFolder: job.cannotConvert
         case .survey: job.canSurvey && !job.state.isActive
         case .port: job.showsPortActions && job.titleID != nil && !job.state.isActive
@@ -104,6 +107,7 @@ enum JobAction: Hashable {
         case .retry: return "Convert the game again"
         case .convert: return "Convert the game with a provisional profile (best effort)"
         case .play: return job.app.map { "Open \($0.lastPathComponent)" } ?? "Open the app"
+        case .openInXcode: return job.xcodeWorkspace.map { "Open \($0.lastPathComponent), then choose the game's scheme and your iPhone or iPad and Run" } ?? ""
         case .chooseAnotherFolder: return "Remove this folder and choose another"
         case .survey: return "Run the script's survey and write the provisional profile, without packing an app"
         case .port:
@@ -111,7 +115,7 @@ enum JobAction: Hashable {
                 ?? "Hand the game to Claude Code or Codex, which attempts the port in a worktree of nxnative"
         case .openSurvey: return job.titleID.map { ConversionCommand.surveyFile(folder: job.folder, titleID: $0).path } ?? ""
         case .showProvisionalProfile: return job.titleID.map { ConversionCommand.provisionalProfile(folder: job.folder, titleID: $0).path } ?? ""
-        case .showInFinder: return job.app == nil ? "Show the game folder in Finder" : "Show the app in Finder"
+        case .showInFinder: return job.app != nil ? "Show the app in Finder" : job.xcodeProject != nil ? "Show the Xcode project in Finder" : "Show the game folder in Finder"
         case .showLogs: return "Open the script's log folder"
         case .remove: return job.state.isActive ? "The game is being converted" : "Remove the game from the queue"
         case .removeFinished: return "Remove every game that has finished from the queue"
@@ -125,6 +129,7 @@ enum JobAction: Hashable {
         case .retry: model.retry(job)
         case .convert: model.convert(job)
         case .play: if let app = job.app { NSWorkspace.shared.open(app) }
+        case .openInXcode: if let workspace = job.xcodeWorkspace { NSWorkspace.shared.open(workspace) }
         case .chooseAnotherFolder:
             model.remove(job)
             model.chooseGameFolders()
@@ -132,7 +137,7 @@ enum JobAction: Hashable {
         case .port: model.offerPort(for: job)
         case .openSurvey: if let survey = file(for: job) { NSWorkspace.shared.open(survey) }
         case .showProvisionalProfile: if let profile = file(for: job) { NSWorkspace.shared.activateFileViewerSelecting([profile]) }
-        case .showInFinder: NSWorkspace.shared.activateFileViewerSelecting([job.app ?? job.folder])
+        case .showInFinder: NSWorkspace.shared.activateFileViewerSelecting([job.app ?? job.xcodeProject ?? job.folder])
         case .showLogs:
             // The script's log folder, or the game folder when there is none yet
             guard let titleID = job.titleID else { return NSWorkspace.shared.activateFileViewerSelecting([job.folder]) }
@@ -154,7 +159,7 @@ enum JobAction: Hashable {
         case .queued: return .start
         case .preparing, .running: return .cancel
         case .installing: return nil
-        case .succeeded: return job.options.surveyOnly ? .convert : .play
+        case .succeeded: return job.options.surveyOnly ? .convert : job.xcodeWorkspace != nil ? .openInXcode : .play
         case .failed, .cancelled: return .retry
         }
     }
@@ -178,7 +183,7 @@ enum JobAction: Hashable {
     }
 
     /// The sidebar row's context menu
-    static let contextMenu: [[JobAction]] = [[.start, .cancel, .retry, .survey, .port, .play, .showInFinder], [.remove]]
+    static let contextMenu: [[JobAction]] = [[.start, .cancel, .retry, .survey, .port, .play, .openInXcode, .showInFinder], [.remove]]
 }
 
 /// A job action as a toolbar or page button: a text button in the prominent glass style, or the action's title and symbol

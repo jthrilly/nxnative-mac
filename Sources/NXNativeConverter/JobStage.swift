@@ -122,6 +122,9 @@ struct JobStage: View {
             chips.append(Chip("nxnative: \(branch) worktree", symbol: "hammer", tone: .info,
                               help: "Built with the port's worktree: \(job.repository?.path ?? "")"))
         }
+        if job.options.output == .xcodeProject {
+            chips.append(Chip("iOS Xcode project", symbol: "iphone", tone: .info, help: "Makes an Xcode project for iPhone and iPad instead of a Mac app"))
+        }
         if job.options.surveyOnly && job.state != .succeeded { chips.append(Chip("Survey only", symbol: "doc.text.magnifyingglass", tone: .neutral)) }
         return chips
     }
@@ -185,7 +188,17 @@ private struct StageReadout: View {
                             .help(survey.path)
                     }
                 case .succeeded:
-                    if let app = job.app {
+                    if let project = job.xcodeProject {
+                        let folder = project.deletingLastPathComponent()
+                        let made = "Prepared in \(duration)" + commit
+                        label("Ready for Xcode")
+                        if compact {
+                            note(folder.path.abbreviatedPath + " · " + made).truncationMode(.middle).help(project.path)
+                        } else {
+                            note(folder.path.abbreviatedPath).truncationMode(.middle).help(project.path)
+                            note(made)
+                        }
+                    } else if let app = job.app {
                         let folder = app.deletingLastPathComponent()
                         let place = (job.installedApp != nil ? "Installed in " : "Built in ") + folder.path.abbreviatedPath
                         let made = "Converted in \(duration)" + commit

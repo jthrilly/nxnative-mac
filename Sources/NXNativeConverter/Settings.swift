@@ -6,7 +6,7 @@ import Observation
 
 @MainActor @Observable final class AppSettings {
     enum Key: String, CaseIterable {
-        case repositoryPath, keysPath, pythonPath, installDirectory, installMode, defaultLanguage, signingIdentity, startAutomatically, checkForUpdatesAtLaunch, notifyWhenDone
+        case repositoryPath, keysPath, pythonPath, installDirectory, installMode, defaultLanguage, defaultOutput, signingIdentity, teamID, startAutomatically, checkForUpdatesAtLaunch, notifyWhenDone
         case defaultAgent, claudePath, codexPath, agentBudgetUSD, agentTimeLimitHours, claudeModel, codexModel, claudeSandbox, codexSandbox, codexIgnoreUserConfig, portsFolder
     }
 
@@ -19,7 +19,9 @@ import Observation
     var installDirectory: String { didSet { store(installDirectory, .installDirectory) } }
     var installMode: InstallMode { didSet { store(installMode.rawValue, .installMode) } }
     var defaultLanguage: String { didSet { store(defaultLanguage, .defaultLanguage) } }
+    var defaultOutput: ConversionOutput { didSet { store(defaultOutput.rawValue, .defaultOutput) } }
     var signingIdentity: String { didSet { store(signingIdentity, .signingIdentity) } }
+    var teamID: String { didSet { store(teamID, .teamID) } }                             // "" = the team chosen in Xcode, else the script's placeholder
     var startAutomatically: Bool { didSet { store(startAutomatically, .startAutomatically) } }
     var checkForUpdatesAtLaunch: Bool { didSet { store(checkForUpdatesAtLaunch, .checkForUpdatesAtLaunch) } }
     var notifyWhenDone: Bool { didSet { store(notifyWhenDone, .notifyWhenDone) } }
@@ -49,7 +51,9 @@ import Observation
         installDirectory = defaults.string(forKey: Key.installDirectory.rawValue) ?? "/Applications"
         installMode = defaults.string(forKey: Key.installMode.rawValue).flatMap(InstallMode.init(rawValue:)) ?? .move
         defaultLanguage = defaults.string(forKey: Key.defaultLanguage.rawValue) ?? ""
+        defaultOutput = defaults.string(forKey: Key.defaultOutput.rawValue).flatMap(ConversionOutput.init(rawValue:)) ?? .macApp
         signingIdentity = defaults.string(forKey: Key.signingIdentity.rawValue) ?? ""
+        teamID = defaults.string(forKey: Key.teamID.rawValue) ?? ""
         startAutomatically = defaults.object(forKey: Key.startAutomatically.rawValue) as? Bool ?? true
         checkForUpdatesAtLaunch = defaults.object(forKey: Key.checkForUpdatesAtLaunch.rawValue) as? Bool ?? true
         notifyWhenDone = defaults.object(forKey: Key.notifyWhenDone.rawValue) as? Bool ?? true

@@ -1,6 +1,11 @@
 // The NSP script's command line for a Mac app (scripts/build_ipa_from_nsp.py --platform mac-app --progress json --ignore-settings: the Settings block at the script's top,
-// which configures Spyder runs, does not apply) and what its output names
+// which configures Spyder runs, does not apply) or an iPhone and iPad Xcode project (--platform ios --prepare-xcode), and what its output names
 import Foundation
+
+/// What a conversion makes: a Mac app, installed like any other, or an Xcode project for iPhone and iPad that Xcode signs and installs on a device
+public enum ConversionOutput: String, Sendable, Codable, CaseIterable {
+    case macApp, xcodeProject
+}
 
 public struct ConversionOptions: Sendable, Equatable, Codable {
     public var language: String = ""
@@ -11,6 +16,7 @@ public struct ConversionOptions: Sendable, Equatable, Codable {
     public var envFile: String = ""
     public var signingIdentity: String = ""
     public var surveyOnly: Bool = false
+    public var output: ConversionOutput = .macApp
 
     public init() {}
 
@@ -25,6 +31,7 @@ public struct ConversionOptions: Sendable, Equatable, Codable {
         envFile = c.lenient(String.self, .envFile) ?? ""
         signingIdentity = c.lenient(String.self, .signingIdentity) ?? ""
         surveyOnly = c.lenient(Bool.self, .surveyOnly) ?? false
+        output = c.lenient(ConversionOutput.self, .output) ?? .macApp
     }
 }
 
@@ -34,6 +41,7 @@ public struct ScriptSupport: Sendable {
     public var macApp: Bool
     public var jsonProgress: Bool
     public var ignoreSettings: Bool
+    public var xcodeProject: Bool
 
     public init(script: String) {
         let declared = script.split(separator: "\n").filter { $0.contains("add_argument(") }
@@ -43,6 +51,7 @@ public struct ScriptSupport: Sendable {
         macApp = has("--platform", choice: "mac-app")
         jsonProgress = has("--progress", choice: "json")
         ignoreSettings = has("--ignore-settings")
+        xcodeProject = has("--prepare-xcode")
     }
 
     /// nil when the repository has no script it can read
@@ -53,18 +62,28 @@ public struct ScriptSupport: Sendable {
 
     /// The options a conversion cannot do without that the script lacks
     public var missing: [String] { [("--platform mac-app", macApp), ("--progress json", jsonProgress)].filter { !$0.1 }.map(\.0) }
+
+    /// The same for a conversion that makes `output`: an Xcode project also needs --prepare-xcode
+    public func missing(for output: ConversionOutput) -> [String] {
+        missing + (output == .xcodeProject && !xcodeProject ? ["--prepare-xcode"] : [])
+    }
 }
 
 public enum ConversionCommand {
-    public static func arguments(script: URL, folder: URL, keys: URL, options: ConversionOptions, ignoreSettings: Bool = true) -> [String] {
-        var args = ["-u", script.path, folder.path, "-k", keys.path, "--platform", "mac-app", "--progress", "json"]
+    /// `teamID` is the Apple developer team an Xcode project is signed by (Settings); empty leaves it to the script (the team chosen in Xcode, else a placeholder)
+    public static func arguments(script: URL, folder: URL, keys: URL, options: ConversionOptions, ignoreSettings: Bool = true, teamID: String = "") -> [String] {
+        let platform = options.output == .xcodeProject ? ["--platform", "ios", "--prepare-xcode"] : ["--platform", "mac-app"]
+        var args = ["-u", script.path, folder.path, "-k", keys.path] + platform + ["--progress", "json"]
         if ignoreSettings { args.append("--ignore-settings") }
         for (flag, value) in [("-l", options.language), ("-p", options.package), ("--app-name", options.appName), ("--bundle-id", options.bundleID)] where !value.isEmpty {
             args += [flag, value]
         }
         if options.allowDamaged { args.append("--allow-damaged") }
         if !options.envFile.isEmpty { args += ["--env-file", options.envFile] }
-        if !options.signingIdentity.isEmpty { args += ["--mac-sign", options.signingIdentity] }
+        switch options.output {
+        case .macApp: if !options.signingIdentity.isEmpty { args += ["--mac-sign", options.signingIdentity] }
+        case .xcodeProject: if !teamID.isEmpty { args += ["--team-id", teamID] }
+        }
         if options.surveyOnly { args.append("--survey-only") }
         return args
     }
@@ -78,6 +97,24 @@ public enum ConversionCommand {
         guard let end = rest.range(of: ".app (") else { return nil }
         let path = String(rest[..<end.lowerBound]) + ".app"
         return path.hasPrefix("/") ? path : nil
+    }
+
+    /// The path after `label` in the script's messages for an Xcode project: "[HH:MM:SS] ready: <workspace>" and "[HH:MM:SS] game project: <project>"
+    public static func path(after label: String, inMessage message: String) -> String? {
+        guard let r = message.range(of: label + ": ") else { return nil }
+        let path = String(message[r.upperBound...]).trimmingCharacters(in: .whitespaces)
+        return path.hasPrefix("/") ? path : nil
+    }
+
+    /// The game's Xcode project, which --prepare-xcode generates in its build folder
+    public static func xcodeProject(folder: URL, titleID: String) -> URL {
+        folder.appendingPathComponent("\(titleID)_build", isDirectory: true).appendingPathComponent("xcode", isDirectory: true)
+            .appendingPathComponent("DmIOS.xcodeproj", isDirectory: true)
+    }
+
+    /// The workspace --prepare-xcode adds each game's project to (a scheme per game): NxNative.xcworkspace beside the game folder
+    public static func xcodeWorkspace(folder: URL) -> URL {
+        folder.deletingLastPathComponent().appendingPathComponent("NxNative.xcworkspace", isDirectory: true)
     }
 
     public static func logsFolder(folder: URL, titleID: String) -> URL {

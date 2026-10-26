@@ -1,5 +1,5 @@
-// ConversionJob: one game folder in the Convert queue, from its scan to the installed app, or to the survey of a game with no profile (the run itself is
-// ConversionRunner). A job built from a port runs the script of the port's worktree instead of the nxnative folder
+// ConversionJob: one game folder in the Convert queue, from its scan to the installed app or the prepared Xcode project, or to the survey of a game with no
+// profile (the run itself is ConversionRunner). A job built from a port runs the script of the port's worktree instead of the nxnative folder
 import ConverterCore
 import Foundation
 import Observation
@@ -29,6 +29,8 @@ enum JobState: Equatable {
     var builtApp: URL?
     var installedApp: URL?
     var surveyWritten: URL?          // a survey-only run's survey.md
+    var xcodeProject: URL?           // an Xcode project run's DmIOS.xcodeproj, and the workspace it is a scheme of
+    var xcodeWorkspace: URL?
     var foreignApp: URL?             // the app in the install folder that the new one did not replace: it is not an nxnative app of this game
     private(set) var attempt = 0     // counts the runs: a view of one run's output takes it as its identity, since each run numbers its log lines from 0
     private(set) var startedAt: Date?
@@ -63,6 +65,8 @@ enum JobState: Equatable {
     var canSurvey: Bool { !cannotConvert && match == .noProfile && (state == .queued || state.isFinished) }
     var portBranch: String? { repository != nil ? titleID.map(PortWorkspace.branchName(titleID:)) : nil }
     var app: URL? { installedApp ?? builtApp }
+    /// Prepared as an Xcode project: there is no app, Xcode builds and installs it
+    var isXcodeProject: Bool { state == .succeeded && !options.surveyOnly && xcodeProject != nil }
 
     /// The game's art: the icon the script extracted, else the newest one a run of this folder extracted before
     var artwork: ArtworkSource? {
@@ -97,7 +101,7 @@ enum JobState: Equatable {
             guard let stage = build.currentStage else { return "Starting…" }
             return "\(stage.name) · \(ProgressFormat.percent(build.overallFraction))"
         case .installing: return "Installing…"
-        case .succeeded: return options.surveyOnly ? "Survey written" : installedApp != nil ? "Installed" : "Done"
+        case .succeeded: return options.surveyOnly ? "Survey written" : xcodeProject != nil ? "Xcode project ready" : installedApp != nil ? "Installed" : "Done"
         case .failed: return cannotConvert ? "Cannot convert" : "Failed"
         case .cancelled: return "Cancelled"
         }
@@ -110,6 +114,7 @@ enum JobState: Equatable {
 
     func begin() {
         buildStorage = BuildState(); failure = FailureTracker(); revision += 1; message = nil; builtApp = nil; installedApp = nil; surveyWritten = nil; nxnative = nil
+        xcodeProject = nil; xcodeWorkspace = nil
         foreignApp = nil; attempt += 1; cancelRequested = false; startedAt = Date(); finishedAt = nil; state = .preparing
     }
 

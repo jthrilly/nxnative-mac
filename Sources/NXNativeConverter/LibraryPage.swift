@@ -50,7 +50,7 @@ struct LibraryPage: View {
                     ContentUnavailableView {
                         Label("No Game Apps Found", systemImage: "square.grid.2x2")
                     } description: {
-                        Text("No game apps were found in your install folders. History has every conversion.")
+                        Text("No game apps were found in your install folders, and no Xcode projects in your game folders. History has every conversion.")
                     } actions: {
                         Button("Show History") { tab = .history }
                     }
@@ -112,10 +112,12 @@ struct LibraryPage: View {
         }
         ToolbarSpacer(.fixed)
         ToolbarItem {
-            Button(LibraryAction.play.title) { if let entry = selectedEntry { LibraryAction.play.perform(on: entry, in: model) } }
+            Button(selectedEntry.map(LibraryAction.play.title(for:)) ?? LibraryAction.play.title) {
+                if let entry = selectedEntry { LibraryAction.play.perform(on: entry, in: model) }
+            }
                 .buttonStyle(.glassProminent)
                 .help(selectedEntry.map { LibraryAction.play.help(for: $0, files: window.libraryFiles) } ?? "Open the selected game")
-                .disabled(selectedEntry == nil)
+                .disabled(selectedEntry.map { !LibraryAction.play.isEnabled(for: $0, files: window.libraryFiles) } ?? true)
         }
         .visibilityPriority(.high)
         .hidden(!showsGames)

@@ -1,5 +1,6 @@
 // Which nxnative built what: the converter's own record of every conversion (library.json in its Application Support folder), and the nxnative game apps found on disk,
-// whose Info.plist names the game (DMTitleID) and the nxnative commit that packed them (DMNxnativeCommit, DMNxnativeCommitDate, DMNxnativeModified: dm/mac/pack_app.py)
+// whose Info.plist names the game (DMTitleID) and the nxnative commit that packed them (DMNxnativeCommit, DMNxnativeCommitDate, DMNxnativeModified: dm/mac/pack_app.py).
+// A game prepared as an Xcode project has no app: its record names the project and the workspace it is a scheme of
 import Foundation
 
 public enum ConversionStatus: String, Sendable, Codable { case succeeded, failed, cancelled }
@@ -10,16 +11,19 @@ public struct ConversionRecord: Sendable, Equatable, Codable, Identifiable {
     public var titleID: String?; public var gameName: String; public var gameVersion: String?; public var package: String?
     public var profile: String?; public var provisional: Bool; public var derived: Bool
     public var builtAppPath: String?; public var installedAppPath: String?
+    public var xcodeProjectPath: String?; public var xcodeWorkspacePath: String?
     public var startedAt: Date; public var finishedAt: Date?
     public var status: ConversionStatus; public var message: String?
     public var nxnative: NXNativeVersion?
     public var options: ConversionOptions
 
     public init(id: UUID = UUID(), folder: String, titleID: String? = nil, gameName: String, gameVersion: String? = nil, package: String? = nil, profile: String? = nil,
-                provisional: Bool = false, derived: Bool = false, builtAppPath: String? = nil, installedAppPath: String? = nil, startedAt: Date, finishedAt: Date? = nil,
-                status: ConversionStatus, message: String? = nil, nxnative: NXNativeVersion? = nil, options: ConversionOptions = ConversionOptions()) {
+                provisional: Bool = false, derived: Bool = false, builtAppPath: String? = nil, installedAppPath: String? = nil, xcodeProjectPath: String? = nil,
+                xcodeWorkspacePath: String? = nil, startedAt: Date, finishedAt: Date? = nil, status: ConversionStatus, message: String? = nil, nxnative: NXNativeVersion? = nil,
+                options: ConversionOptions = ConversionOptions()) {
         self.id = id; self.folder = folder; self.titleID = titleID; self.gameName = gameName; self.gameVersion = gameVersion; self.package = package; self.profile = profile
-        self.provisional = provisional; self.derived = derived; self.builtAppPath = builtAppPath; self.installedAppPath = installedAppPath; self.startedAt = startedAt
+        self.provisional = provisional; self.derived = derived; self.builtAppPath = builtAppPath; self.installedAppPath = installedAppPath
+        self.xcodeProjectPath = xcodeProjectPath; self.xcodeWorkspacePath = xcodeWorkspacePath; self.startedAt = startedAt
         self.finishedAt = finishedAt; self.status = status; self.message = message; self.nxnative = nxnative; self.options = options
     }
 
@@ -32,6 +36,7 @@ public struct ConversionRecord: Sendable, Equatable, Codable, Identifiable {
         gameVersion = c.lenient(String.self, .gameVersion); package = c.lenient(String.self, .package); profile = c.lenient(String.self, .profile)
         provisional = c.lenient(Bool.self, .provisional) ?? false; derived = c.lenient(Bool.self, .derived) ?? false
         builtAppPath = c.lenient(String.self, .builtAppPath); installedAppPath = c.lenient(String.self, .installedAppPath)
+        xcodeProjectPath = c.lenient(String.self, .xcodeProjectPath); xcodeWorkspacePath = c.lenient(String.self, .xcodeWorkspacePath)
         startedAt = c.lenient(Date.self, .startedAt) ?? Date(timeIntervalSince1970: 0); finishedAt = c.lenient(Date.self, .finishedAt)
         status = c.lenient(ConversionStatus.self, .status) ?? .failed; message = c.lenient(String.self, .message)
         nxnative = c.lenient(NXNativeVersion.self, .nxnative); options = c.lenient(ConversionOptions.self, .options) ?? ConversionOptions()
@@ -166,6 +171,18 @@ public struct InstalledGameApp: Sendable, Equatable, Identifiable {
     public var url: URL; public var name: String; public var titleID: String; public var version: String?; public var bundleID: String?
     public var language: String?; public var nxnativeCommit: String?; public var nxnativeCommitDate: Date?; public var nxnativeModified: Bool?
     public var modified: Date?
+}
+
+extension InstalledGameApp {
+    /// A game prepared as an Xcode project, as its record names it: the project in place of the app; nil for a record of anything else
+    public init?(xcodeProjectOf record: ConversionRecord) {
+        guard record.status == .succeeded, record.options.output == .xcodeProject, let project = record.xcodeProjectPath, let titleID = record.titleID else { return nil }
+        let language = record.options.language
+        self.init(url: URL(fileURLWithPath: project, isDirectory: true), name: record.options.appName.isEmpty ? record.gameName : record.options.appName, titleID: titleID,
+                  version: record.gameVersion, bundleID: record.options.bundleID.isEmpty ? nil : record.options.bundleID, language: language.isEmpty ? nil : language,
+                  nxnativeCommit: record.nxnative?.commit, nxnativeCommitDate: record.nxnative?.commitDate, nxnativeModified: record.nxnative?.modified,
+                  modified: record.finishedAt)
+    }
 }
 
 public enum InstalledAppScanner {

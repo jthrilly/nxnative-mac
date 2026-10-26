@@ -37,9 +37,11 @@ struct AlertItem: Identifiable {
 }
 
 struct LibraryEntry: Identifiable {
-    var app: InstalledGameApp
+    var app: InstalledGameApp          // a game prepared as an Xcode project: the project, as its record names it (InstalledGameApp(xcodeProjectOf:))
     var record: ConversionRecord?      // the newest record of this app (by path, else by title ID)
+    var xcodeWorkspace: URL? = nil     // the workspace an Xcode project is a scheme of; nil for a Mac app
     var id: URL { app.id }
+    var isXcodeProject: Bool { xcodeWorkspace != nil }
     var commit: String? { app.nxnativeCommit ?? record?.nxnative?.commit }
     var commitDate: Date? { app.nxnativeCommitDate ?? record?.nxnative?.commitDate }
     var modified: Bool { app.nxnativeModified ?? record?.nxnative?.modified ?? false }
@@ -81,6 +83,7 @@ struct LibraryEntry: Identifiable {
     var terminalSessions: Set<String> = []                   // title IDs of the ports with an agent session open in Terminal
     @ObservationIgnored var portRunTask: Task<Void, Never>?
     @ObservationIgnored private var installedApps: [InstalledGameApp] = []
+    @ObservationIgnored private var preparedProjects: Set<String> = []   // the Xcode projects and workspaces of the records that exist
     @ObservationIgnored private var launched = false
     @ObservationIgnored var recheckWhenActive = false   // a fix runs in Terminal: check again when the user comes back
     @ObservationIgnored private var backgroundFetch: Task<Void, Never>?
@@ -211,7 +214,7 @@ struct LibraryEntry: Identifiable {
                 let scan = await Task.detached { NSPScanner.scan(folder: folder) }.value
                 let known = await profiles(of: repository)
                 var opts = options ?? ConversionOptions()
-                if options == nil { opts.language = settings.defaultLanguage }
+                if options == nil { opts.language = settings.defaultLanguage; opts.output = settings.defaultOutput }
                 let job = ConversionJob(folder: folder, scan: scan, profiles: known, options: opts, repository: repository)
                 jobs.append(job)
                 firstNew = firstNew ?? job.id
@@ -337,17 +340,30 @@ struct LibraryEntry: Identifiable {
         dirs = dirs.filter { seen.insert($0.standardizedFileURL.path).inserted && fm.fileExists(atPath: $0.path) }
         let scanDirs = dirs
         installedApps = await Task.detached { InstalledAppScanner.scan(directories: scanDirs) }.value
+        let prepared = Set(records.flatMap { [$0.xcodeProjectPath, $0.xcodeWorkspacePath].compactMap { $0 } })
+        preparedProjects = await Task.detached { prepared.filter { FileManager.default.fileExists(atPath: $0) } }.value
         rebuildLibrary()
         await refreshCommitsBehind()
     }
 
     private func rebuildLibrary() {
         func resolved(_ path: String?) -> String? { path.map { URL(fileURLWithPath: $0).resolvingSymlinksInPath().path } }
-        library = installedApps.map { app in
+        let apps = installedApps.map { app in
             let path = app.url.resolvingSymlinksInPath().path
             let byPath = records.last { resolved($0.installedAppPath) == path || resolved($0.builtAppPath) == path }
-            return LibraryEntry(app: app, record: byPath ?? records.last { $0.status == .succeeded && $0.titleID == app.titleID })
-        }.sorted { $0.app.name.localizedStandardCompare($1.app.name) == .orderedAscending }
+            return LibraryEntry(app: app, record: byPath ?? records.last { $0.status == .succeeded && $0.titleID == app.titleID && $0.options.output == .macApp })
+        }
+        // A game prepared as an Xcode project, once per project (its newest record), while the project and its workspace are there
+        var projects: [LibraryEntry] = []
+        for record in records.reversed() {
+            guard let project = InstalledGameApp(xcodeProjectOf: record), let workspace = record.xcodeWorkspacePath,
+                  preparedProjects.contains(project.url.path), preparedProjects.contains(workspace), !projects.contains(where: { $0.id == project.id }) else { continue }
+            projects.append(LibraryEntry(app: project, record: record, xcodeWorkspace: URL(fileURLWithPath: workspace, isDirectory: true)))
+        }
+        library = (apps + projects).sorted {
+            let order = $0.app.name.localizedStandardCompare($1.app.name)
+            return order == .orderedSame ? !$0.isXcodeProject && $1.isXcodeProject : order == .orderedAscending
+        }
     }
 
     private func refreshCommitsBehind() async {

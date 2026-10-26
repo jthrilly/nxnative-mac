@@ -1,5 +1,5 @@
-// The Library's games: a grid of the game apps (their icons, names and how their nxnative compares with the checkout's HEAD), driven by the mouse,
-// the keyboard and VoiceOver
+// The Library's games: a grid of the game apps and Xcode projects (their icons, names and how their nxnative compares with the checkout's HEAD), driven
+// by the mouse, the keyboard and VoiceOver; an Xcode project's art carries an iPhone badge
 import ConverterCore
 import SwiftUI
 
@@ -103,12 +103,13 @@ private struct LibraryTile: View {
     var body: some View {
         let status = BuildStatus(entry: entry, behind: entry.commit.flatMap { model.commitsBehind[$0] })
         VStack(spacing: Space.xs) {
-            GameArtwork(.app(entry.app.url), name: entry.app.name, size: Self.icon, shape: .app)
+            GameArtwork(entry.artwork, name: entry.app.name, size: Self.icon, shape: entry.artworkShape)
+                .overlay(alignment: .bottomTrailing) { if entry.isXcodeProject { badge } }
                 .overlay { if hovering { play } }
                 .padding(Self.inset)
                 .background {
                     if selected {
-                        RoundedRectangle(cornerRadius: ArtworkShape.app.radius(for: Self.icon) + Self.inset, style: .continuous)
+                        RoundedRectangle(cornerRadius: entry.artworkShape.radius(for: Self.icon) + Self.inset, style: .continuous)
                             .fill(.quaternary)
                     }
                 }
@@ -140,22 +141,34 @@ private struct LibraryTile: View {
         .onTapGesture(count: 2) { LibraryAction.play.perform(on: entry, in: model) }
         .contextMenu { LibraryEntryMenuItems(entry: entry) }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(entry.app.name), \(status.text)")
+        .accessibilityLabel(entry.isXcodeProject ? "\(entry.app.name), \(entry.kindText), \(status.text)" : "\(entry.app.name), \(status.text)")
         .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
         .accessibilityAction { select() }
         .accessibilityActions {
             ForEach(Self.voiceOverActions.filter { $0.applies(to: entry) && $0.isEnabled(for: entry, files: window.libraryFiles) }, id: \.self) { action in
-                Button(action.title) { action.perform(on: entry, in: model) }
+                Button(action.title(for: entry)) { action.perform(on: entry, in: model) }
             }
         }
     }
 
     private static let voiceOverActions: [LibraryAction] = [.play, .showInFinder, .rebuild]
 
+    /// An Xcode project's mark: it runs on an iPhone or iPad, from Xcode
+    private var badge: some View {
+        Image(systemName: "iphone")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.white)
+            .padding(5)
+            .background(.tint, in: .circle)
+            .offset(x: 4, y: 4)
+            .help("An iOS Xcode project: Open in Xcode builds and installs it on your iPhone or iPad")
+            .accessibilityHidden(true)
+    }
+
     /// The hover Play button: glass floating over the icon, which exists only while the pointer is on the tile
     private var play: some View {
         GlassEffectContainer {
-            Button(LibraryAction.play.title, systemImage: LibraryAction.play.symbol) { LibraryAction.play.perform(on: entry, in: model) }
+            Button(LibraryAction.play.title(for: entry), systemImage: LibraryAction.play.symbol(for: entry)) { LibraryAction.play.perform(on: entry, in: model) }
                 .labelStyle(.iconOnly)
                 .buttonStyle(.glass)
                 .buttonBorderShape(.circle)

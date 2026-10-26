@@ -32,6 +32,33 @@ struct LibraryTests {
         try FileManager.default.contentsOfDirectory(atPath: t.url.path).filter { $0.hasPrefix(name + ".unreadable-") }.sorted().map { t.url.appendingPathComponent($0) }
     }
 
+    @Test func xcodeProjectRecords() throws {
+        var options = ConversionOptions(); options.output = .xcodeProject; options.language = "fr"
+        let version = NXNativeVersion(commit: String(repeating: "b", count: 40), shortCommit: "bbbbbbb", subject: "x", commitDate: nil, branch: "main", describe: nil, modified: false)
+        let record = ConversionRecord(folder: "/Games/A", titleID: "0100ABCD00000000", gameName: "A", gameVersion: "1.2.1",
+                                      xcodeProjectPath: "/Games/A/0100ABCD00000000_build/xcode/DmIOS.xcodeproj", xcodeWorkspacePath: "/Games/NxNative.xcworkspace",
+                                      startedAt: Date(timeIntervalSince1970: 1_790_000_000), finishedAt: Date(timeIntervalSince1970: 1_790_000_600), status: .succeeded,
+                                      nxnative: version, options: options)
+        let project = try #require(InstalledGameApp(xcodeProjectOf: record))
+        #expect(project.url.path == "/Games/A/0100ABCD00000000_build/xcode/DmIOS.xcodeproj")
+        #expect(project.name == "A" && project.titleID == "0100ABCD00000000" && project.version == "1.2.1" && project.language == "fr" && project.bundleID == nil)
+        #expect(project.nxnativeCommit == version.commit && project.nxnativeModified == false)
+        var named = record; named.options.appName = "Game A"
+        #expect(InstalledGameApp(xcodeProjectOf: named)?.name == "Game A")
+        var failed = record; failed.status = .failed
+        var mac = record; mac.options.output = .macApp
+        var noPath = record; noPath.xcodeProjectPath = nil
+        for other in [failed, mac, noPath] { #expect(InstalledGameApp(xcodeProjectOf: other) == nil) }
+        // the paths survive a round trip, and a record written before them still loads
+        let t = try TempDir(); defer { t.remove() }
+        let store = LibraryStore(fileURL: t.url.appendingPathComponent("library.json"))
+        try store.save([record])
+        #expect(try store.load() == [record])
+        let f = try t.file("old.json", Data(#"[{"folder":"/Games/A","status":"succeeded","options":{"language":"ja"}}]"#.utf8))
+        let old = try #require(try LibraryStore(fileURL: f).load().first)
+        #expect(old.xcodeProjectPath == nil && old.options.output == .macApp)
+    }
+
     @Test func unreadableLibraryIsMovedAside() throws {
         let t = try TempDir(); defer { t.remove() }
         let bytes = Data("{not json".utf8)
