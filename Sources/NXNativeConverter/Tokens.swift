@@ -1,6 +1,6 @@
 // The converter's look, taken from its icon: an indigo stage, and the red and cyan controller halves around a screen that becomes the icon's Mac
 // window when a game has been converted. The colours (each with its light, dark and Increase Contrast values), the tones of state, the stage type,
-// spacing, motion, the environment keys and the shared container shapes
+// spacing, motion, the split view's column widths, the environment keys and the shared container shapes
 import AppKit
 import SwiftUI
 
@@ -185,6 +185,25 @@ private struct MotionModifier<V: Equatable>: ViewModifier {
     func body(content: Content) -> some View {
         content.animation(reduceMotion ? (fades ? Motion.fade : nil) : animation, value: value)
     }
+}
+
+// MARK: - Columns
+
+/// The widest sidebar and inspector, and the narrowest window: room for twice the widest sidebar and the widest inspector beside a column whose
+/// content has no minimum width (`splitColumnContent()`), with 20 points to spare for the dividers and rounding
+enum ColumnWidth {
+    static let sidebarMax: CGFloat = 260
+    static let inspectorMax: CGFloat = 340
+    static let windowMin: CGFloat = 2 * sidebarMax + inspectorMax + 20
+}
+
+extension View {
+    /// The content of a split view's column, with an explicit zero minimum width (`maxWidth: .infinity` alone keeps the content's own minimum).
+    /// SwiftUI (macOS 27) adds the floating sidebar's and inspector's widths to the minimum width of the column under them, while the split view
+    /// gives that column only the width beside the sidebar. Once the content's minimum, twice the sidebar and the inspector add up to more than the
+    /// window's width, the split views resize each other within one layout pass until AppKit raises "more Update Constraints in Window passes than
+    /// there are views" and the app ends
+    func splitColumnContent() -> some View { frame(minWidth: 0, maxWidth: .infinity) }
 }
 
 // MARK: - Environment

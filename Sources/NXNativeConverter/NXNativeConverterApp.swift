@@ -1,7 +1,7 @@
 // nxnative Converter: a Mac app for nxnative's Switch → Mac route (update nxnative, check the tools, convert a dropped game folder with
 // build_ipa_from_nsp.py --platform mac-app, install the app into Applications, remember which nxnative built it). This file holds the scenes and the
-// application delegate (Dock drops, which bring the window back; the Dock badge of the games still to convert; quitting while something runs; the
-// relaunch after a rebuild). It also runs as a bare executable (swift run); the entry point is Main (EntryPoint.swift)
+// application delegate (Dock drops, which bring the window back; the Dock badge of the games still to convert; quitting while something runs). It
+// also runs as a bare executable (swift run); the entry point is Main (EntryPoint.swift)
 import AppKit
 import ConverterCore
 import SwiftUI
@@ -14,7 +14,7 @@ struct NXNativeConverterApp: App {
             MainWindow()
                 .environment(delegate.model)
                 .environment(delegate.windowState)
-                .frame(minWidth: 900, minHeight: 600)
+                .frame(minWidth: ColumnWidth.windowMin, minHeight: 600)
                 .modifier(KeepsWindowOpener(delegate: delegate))
         }
         .defaultSize(width: 1180, height: 780)

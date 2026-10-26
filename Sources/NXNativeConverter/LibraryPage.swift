@@ -13,11 +13,13 @@ struct LibraryPage: View {
         content
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .safeAreaBar(edge: .top, spacing: 0) { bar }
+            // As well as the detail column's: the inspector's split view takes its column's minimum width from here, the tabs bar included
+            .splitColumnContent()
             .navigationTitle("Library")
             .navigationSubtitle(subtitle)
             // Switching to History hides the inspector without forgetting that it was open
             .inspector(isPresented: Binding(get: { showsInspector && showsGames }, set: { if showsGames { showsInspector = $0 } })) {
-                inspector.inspectorColumnWidth(min: 260, ideal: 280, max: 340)
+                inspector.inspectorColumnWidth(min: 260, ideal: 280, max: ColumnWidth.inspectorMax)
             }
             .toolbar { toolbar }
     }

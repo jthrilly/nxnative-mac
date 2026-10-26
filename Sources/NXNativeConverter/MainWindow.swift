@@ -109,9 +109,10 @@ struct MainWindow: View {
         @Bindable var window = window
         NavigationSplitView {
             Sidebar()
-                .navigationSplitViewColumnWidth(min: 200, ideal: 240, max: 320)
+                .navigationSplitViewColumnWidth(min: 200, ideal: 240, max: ColumnWidth.sidebarMax)
         } detail: {
             DetailRouter()
+                .splitColumnContent()
                 .environment(\.dropTargeted, dropTargeted)
                 // The container is there before the card, so the card's glass transition applies when it appears
                 .overlay { GlassEffectContainer { if showsDropOverlay { DropCard() } }.allowsHitTesting(false) }
