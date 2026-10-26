@@ -1,0 +1,5 @@
+.DS_Store
+# swift build / swift test outputs
+.build/
+.swiftpm/
+__pycache__/
