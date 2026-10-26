@@ -62,7 +62,10 @@ public enum NSPScanner {
                 let app = low == 0 ? tid : low == 0x800 ? tid & ~0xFFF : (tid & ~0xFFF) &- 0x1000
                 if !families.contains(where: { $0.app == app }) { families.append((app, nil, [], [])) }
                 let f = families.firstIndex { $0.app == app } ?? 0
-                if low == 0 { file.kind = .base; families[f].base = index }
+                if ext == "xci" || ext == "xcz" {   // a cartridge image holds the base game whatever its name's tag says; a merged one may bundle an update (its [v<N>] tag) and DLC
+                    file.kind = .base; families[f].base = index   //   Animal Crossing's "[01006F8002326800][v1769472][Base][v2.0.5][3 DLC's].xci" is tagged with the update's title ID
+                    if let v = file.version, v > 0 { families[f].updates.append(index) }
+                } else if low == 0 { file.kind = .base; families[f].base = index }
                 else if low == 0x800 { file.kind = .update; families[f].updates.append(index) }
                 else { file.kind = .dlc; families[f].dlc.append(index) }
             } else { unknown.append(index) }

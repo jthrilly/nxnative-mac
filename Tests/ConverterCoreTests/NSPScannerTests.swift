@@ -41,6 +41,28 @@ struct NSPScannerTests {
         #expect(s.displayName == "Cartridge")
     }
 
+    @Test func mergedXCI() throws {   // scan_nsps (test_nsp_xci): an XCI is the base game, and its [v<N>] tag stands for the update it bundles
+        let t = try TempDir(); defer { t.remove() }
+        let name = "Animal Crossing New Horizons [01006F8002326800][v1769472][Base][v2.0.5][3 DLC's].xci"
+        try t.file(name, Data("HEAD".utf8))
+        let s = NSPScanner.scan(folder: t.url)
+        #expect(s.errors == [] && s.warnings == [])
+        #expect(s.applicationID == 0x0100_6F80_0232_6000)
+        #expect(s.base?.url.lastPathComponent == name && s.base?.kind == .base)
+        #expect(s.updates.map(\.url.lastPathComponent) == [name] && s.versions == [0, 1769472])
+        #expect(s.files.count == 1 && s.isConvertible)
+        #expect(s.displayName == "Animal Crossing New Horizons")
+    }
+
+    @Test func cartridgeDumpWithoutUpdate() throws {
+        let t = try TempDir(); defer { t.remove() }
+        try t.file("Game [0100ABCD00000000][v0].xci", Data("HEAD".utf8))
+        try t.file("Game [0100ABCD00000800][v65536].nsp", pfs0([ticket(app | 0x800)]))
+        let s = NSPScanner.scan(folder: t.url)
+        #expect(s.base?.url.lastPathComponent == "Game [0100ABCD00000000][v0].xci")
+        #expect(s.updates.map(\.url.lastPathComponent) == ["Game [0100ABCD00000800][v65536].nsp"] && s.isConvertible)
+    }
+
     @Test func twoGames() throws {
         let t = try TempDir(); defer { t.remove() }
         try t.file("A.nsp", pfs0([ticket(app)]))
