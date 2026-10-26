@@ -231,8 +231,6 @@ struct AppCommands: Commands {
         Button("Install Missing Requirements") { show(); model.page = .setup; Task { await model.installMissing() } }
             .disabled(!model.canInstallMissing)
         Divider()
-        Button("Rebuild nxnative Converter and Relaunch") { show(); model.page = .repository; Task { await model.rebuildConverter() } }
-            .disabled(!model.canRebuildConverter)
         Button("Show nxnative in Finder") { NSWorkspace.shared.activateFileViewerSelecting([model.settings.repositoryURL]) }
             .disabled(model.repository?.exists != true)
     }

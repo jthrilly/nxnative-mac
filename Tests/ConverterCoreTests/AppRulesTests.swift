@@ -158,29 +158,6 @@ struct AppScriptsTests {
         #expect(!FileManager.default.fileExists(atPath: marker.path))
         #expect(!FileManager.default.fileExists(atPath: dir.url.appendingPathComponent("pwned").path))
     }
-
-    @Test func relaunchWaitsForTheProcess() throws {
-        let dir = try TempDir()
-        defer { dir.remove() }
-        let bin = try dir.sub("bin")
-        let log = dir.url.appendingPathComponent("opened")
-        try dir.file("bin/open", Data("#!/bin/sh\necho \"$1\" > \(AgentCommand.shellQuote(log.path))\n".utf8))
-        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: bin.appendingPathComponent("open").path)
-        let sleeper = Process()
-        sleeper.executableURL = URL(fileURLWithPath: "/bin/sleep")
-        sleeper.arguments = ["0.6"]
-        try sleeper.run()
-        let started = Date()
-        let relaunch = Process()
-        relaunch.executableURL = URL(fileURLWithPath: "/bin/sh")
-        relaunch.arguments = AppScripts.relaunchArguments(bundle: "/Applications/My App.app", pid: sleeper.processIdentifier)
-        relaunch.environment = ["PATH": bin.path + ":/usr/bin:/bin"]
-        try relaunch.run()
-        sleeper.waitUntilExit()   // reaped, so kill -0 sees it gone
-        relaunch.waitUntilExit()
-        #expect(Date().timeIntervalSince(started) >= 0.5)
-        #expect(try String(contentsOf: log, encoding: .utf8) == "/Applications/My App.app\n")
-    }
 }
 
 struct RepositoryAdviceTests {

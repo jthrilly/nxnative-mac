@@ -113,6 +113,4 @@ private struct KeepsWindowOpener: ViewModifier {
         }
         return .terminateLater
     }
-
-    func applicationWillTerminate(_ notification: Notification) { model.relaunchIfAsked() }
 }

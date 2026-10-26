@@ -50,12 +50,13 @@ struct PrerequisitesTests {
 
     @Test func probeRealPython() async throws {
         let env = ShellEnvironment(variables: ProcessInfo.processInfo.environment).withToolPaths()
-        let checker = PrerequisiteChecker(environment: env, python: "python3", repository: repositoryRoot, keys: nil)
+        let folder = FileManager.default.temporaryDirectory
+        let checker = PrerequisiteChecker(environment: env, python: "python3", repository: folder, keys: nil)
         let p = try #require(await checker.probePython())
         #expect(p.version.split(separator: ".").count >= 2 && p.version.hasPrefix("3."))
         #expect(p.executable.hasPrefix("/"))
         #expect(Set(p.modules.keys).isSuperset(of: PrerequisiteChecker.requiredModules(pythonVersion: p.version)))
-        let missing = PrerequisiteChecker(environment: env, python: "/nonexistent/python3", repository: repositoryRoot, keys: nil)
+        let missing = PrerequisiteChecker(environment: env, python: "/nonexistent/python3", repository: folder, keys: nil)
         #expect(await missing.probePython() == nil)
     }
 
@@ -65,7 +66,7 @@ struct PrerequisitesTests {
         var env = ShellEnvironment(variables: ProcessInfo.processInfo.environment).withToolPaths()
         let bin = try fakeAgents(t, signedIn: false)   // never the real claude or codex
         env.variables["PATH"] = bin.path + ":" + (env.variables["PATH"] ?? "")
-        let checks = await PrerequisiteChecker(environment: env, python: "python3", repository: repositoryRoot, keys: keys).checkAll()
+        let checks = await PrerequisiteChecker(environment: env, python: "python3", repository: try standInCheckout(t), keys: keys).checkAll()
         #expect(checks.map(\.id) == PrerequisiteID.allCases)
         #expect(checks.allSatisfy { !$0.title.isEmpty })
         #expect(checks.first { $0.id == .repository }?.state == .ok)
@@ -114,8 +115,8 @@ struct PrerequisitesTests {
 
     func checkAgent(_ kind: AgentKind, path: String, brew: Bool = true, home: String = "/nonexistent", executables: [AgentKind: String] = [:]) async -> PrerequisiteCheck {
         let id: PrerequisiteID = kind == .claudeCode ? .claudeCode : .codex
-        let checker = PrerequisiteChecker(environment: ShellEnvironment(variables: ["PATH": path, "HOME": home]), python: "python3", repository: repositoryRoot,
-                                          keys: nil, agentExecutables: executables)
+        let checker = PrerequisiteChecker(environment: ShellEnvironment(variables: ["PATH": path, "HOME": home]), python: "python3",
+                                          repository: URL(fileURLWithPath: "/nonexistent"), keys: nil, agentExecutables: executables)
         return await checker.checkAgent(kind, brew: brew) { state, detail, fixes in
             PrerequisiteCheck(id: id, title: PrerequisiteChecker.title(id), state: state, detail: detail, required: false, fixes: state == .ok ? [] : fixes)
         }
@@ -168,8 +169,27 @@ struct PrerequisitesTests {
     }
 
     @Test func toolsInTheScriptsOrder() {
-        let checker = PrerequisiteChecker(environment: ShellEnvironment(variables: ["PATH": "/Users/x/bin:/usr/bin"]), python: "python3", repository: repositoryRoot, keys: nil)
+        let checker = PrerequisiteChecker(environment: ShellEnvironment(variables: ["PATH": "/Users/x/bin:/usr/bin"]), python: "python3",
+                                          repository: URL(fileURLWithPath: "/nonexistent"), keys: nil)
         #expect(Array(checker.tools.path.prefix(ShellEnvironment.toolPaths.count + 1)) == ShellEnvironment.toolPaths + ["/Users/x/bin"])
+    }
+
+    @Test func repositoryScriptSupport() async throws {   // what the checkout's NSP script supports of the options the app passes
+        let t = try TempDir(); defer { t.remove() }
+        func check(_ script: String) async throws -> PrerequisiteCheck {
+            let repository = try standInCheckout(t, script: script)
+            return await PrerequisiteChecker(environment: ShellEnvironment(variables: [:]), python: "python3", repository: repository, keys: nil)
+                .check(.repository, probe: Task { nil })
+        }
+        let path = t.url.appendingPathComponent("nxnative").path
+        let current = try await check(scriptOptionLines)
+        #expect(current.state == .ok && current.detail == path)
+        let older = try await check(scriptOptionLines.split(separator: "\n").filter { !$0.contains("--ignore-settings") }.joined(separator: "\n"))
+        #expect(older.state == .warning && older.required && older.fixes.isEmpty)
+        #expect(older.detail.hasPrefix(path + "\nIts NSP script has no --ignore-settings"))
+        let oldest = try await check("ap.add_argument('--platform', choices=('ios', 'mac'), help='')\n")
+        #expect(oldest.state == .missing && oldest.fixes == [.chooseFolder(title: "Choose the nxnative Folder…")])
+        #expect(oldest.detail == path + "\nIts NSP script is older than this app: it has no --platform mac-app or --progress json. Update nxnative, or choose a newer checkout.")
     }
 
     @Test func agentMissing() async throws {

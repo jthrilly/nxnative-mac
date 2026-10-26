@@ -101,11 +101,6 @@ struct GitRepositoryTests {
         #expect(old != new && new == otherHead)
         #expect(await repo.commitCount(from: first) == 2)
         #expect(await repo.commitCount(from: "no-such-ref") == nil)
-        #expect(await repo.isAncestor(first, of: "HEAD"))
-        #expect(await !repo.isAncestor("HEAD", of: first))
-        #expect(await repo.lastCommit(touching: ["scripts", "dm/tools"]) == first)
-        #expect(await repo.lastCommit(touching: ["README"]) == new)
-        #expect(await repo.lastCommit(touching: ["nothing/here"]) == nil)
 
         try f.git(f.local, "tag", "v1")
         #expect(try await repo.version().describe == "v1")

@@ -1,5 +1,5 @@
 // The shell scripts the app hands to Terminal or /bin/sh: a port's agent session (.command; its shell's PID in a marker file while it runs, see PortRules),
-// a Setup fix that needs a terminal, and the relaunch after the app rebuilt itself. Names that come from a game (a folder name, its NACP title) only go into
+// and a Setup fix that needs a terminal. Names that come from a game (a folder name, its NACP title) only go into
 // comment lines, with their control characters made spaces: a newline in them would start a command
 import Foundation
 
@@ -18,10 +18,5 @@ public enum AppScripts {
 
     public static func setupFix(title: String, command: String) -> String {
         "#!/bin/zsh -l\n" + commentLine(title) + "\n\(command)\necho; echo \"Done. You can close this window.\"\n"
-    }
-
-    /// /bin/sh arguments that open the app bundle again once the process pid has exited: `open` on an app that still runs only brings it to the front
-    public static func relaunchArguments(bundle: String, pid: Int32) -> [String] {
-        ["-c", "while kill -0 \"$1\" 2>/dev/null; do sleep 0.2; done; open \"$0\"", bundle, String(pid)]
     }
 }

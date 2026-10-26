@@ -108,7 +108,7 @@ private struct ConsoleOperation {
     let page: Page
 
     private static let repositoryOperations: Set<String> = [
-        "Checking for updates", "Updating nxnative", "Discarding local changes", "Downloading nxnative", "Rebuilding nxnative Converter",
+        "Checking for updates", "Updating nxnative", "Discarding local changes", "Downloading nxnative",
     ]
 
     @MainActor init?(_ model: AppModel) {

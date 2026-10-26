@@ -1,4 +1,4 @@
-// GameProfiles: game.tsv parsing (as dm/games/game.py reads it), every profile in this repository, and how a folder matches a profile
+// GameProfiles: game.tsv parsing (as dm/games/game.py reads it), every profile in an nxnative checkout (NXNATIVE_REPO), and how a folder matches a profile
 import Foundation
 import Testing
 @testable import ConverterCore
@@ -36,10 +36,11 @@ struct GameProfilesTests {
         #expect(bare.builds.isEmpty && bare.shaderVersions.isEmpty && bare.package == nil && bare.name == "")
     }
 
-    @Test func repositoryProfiles() throws {
-        let games = repositoryRoot.appendingPathComponent("dm/games")
+    @Test(.enabled(if: nxnativeCheckout != nil, "NXNATIVE_REPO names no nxnative checkout")) func repositoryProfiles() throws {
+        let repository = try #require(nxnativeCheckout)
+        let games = repository.appendingPathComponent("dm/games")
         let dirs = try FileManager.default.contentsOfDirectory(atPath: games.path).filter { FileManager.default.fileExists(atPath: games.appendingPathComponent("\($0)/game.tsv").path) }
-        let profiles = GameProfiles.load(repository: repositoryRoot)
+        let profiles = GameProfiles.load(repository: repository)
         #expect(!dirs.isEmpty)
         #expect(Set(profiles.map(\.id)) == Set(dirs))
         #expect(profiles.map(\.id) == profiles.map(\.id).sorted())
@@ -48,7 +49,8 @@ struct GameProfilesTests {
             #expect(!p.builds.isEmpty, "\(p.id) has no build rows")
         }
         let mario = try #require(profiles.first { $0.id == "010015100B514000" })
-        #expect(mario.builds.map(\.version) == ["v0", "v327680"] && mario.shaderVersions == ["v0", "v327680"])
+        // A checkout adds builds over time: the ones Mario was brought up on stay
+        #expect(Set(["v0", "v327680"]).isSubset(of: mario.builds.map(\.version)) && mario.shaderVersions.contains("v0"))
         #expect(GameProfiles.load(repository: URL(fileURLWithPath: "/nonexistent")) == [])
     }
 

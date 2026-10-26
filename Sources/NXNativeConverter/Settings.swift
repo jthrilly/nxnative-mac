@@ -39,9 +39,11 @@ import Observation
         self.defaults = defaults
         let home = FileManager.default.homeDirectoryForCurrentUser
         let fm = FileManager.default
-        let builtFrom = ConverterInfo.builtFromRepository.flatMap { fm.fileExists(atPath: $0.path) ? $0.path : nil }
+        // The first usual place that holds a checkout, else ~/nxnative, where the nxnative page offers to download it
+        let checkout = ["Projects/nxnative", "Developer/nxnative", "nxnative"].map { home.appendingPathComponent($0).path }
+            .first { fm.fileExists(atPath: $0 + "/scripts/build_ipa_from_nsp.py") }
         let keys = ["/.switch/prod.keys", "/Games/prod.keys"].map { home.path + $0 }.first { fm.fileExists(atPath: $0) }
-        repositoryPath = defaults.string(forKey: Key.repositoryPath.rawValue) ?? builtFrom ?? home.appendingPathComponent("nxnative").path
+        repositoryPath = defaults.string(forKey: Key.repositoryPath.rawValue) ?? checkout ?? home.appendingPathComponent("nxnative").path
         keysPath = defaults.string(forKey: Key.keysPath.rawValue) ?? keys ?? ""
         pythonPath = defaults.string(forKey: Key.pythonPath.rawValue) ?? ""
         installDirectory = defaults.string(forKey: Key.installDirectory.rawValue) ?? "/Applications"

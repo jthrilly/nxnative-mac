@@ -22,13 +22,20 @@ extension AppModel {
         guard let python = pythonExecutable else {
             return conclude(job, .failed, "Python 3 was not found on the shell's PATH. Install it or choose an interpreter on the Setup page.")
         }
+        let support = ScriptSupport(repository: repo)
+        if let missing = support?.missing, !missing.isEmpty {
+            return conclude(job, .failed, "The NSP script in \(repo.path) is older than this app: it has no \(missing.joined(separator: " or ")). "
+                            + "Update nxnative on the nxnative page, or choose a newer checkout in Settings.")
+        }
         job.nxnative = try? await GitRepository(path: repo, environment: env).version()
         if let v = job.nxnative { job.note("nxnative \(v.shortCommit)\(v.modified ? " (modified)" : "")\(job.repository != nil ? " · " + (v.branch ?? "port worktree") : "") · \(v.subject)") }
         if job.cancelRequested { return conclude(job, .cancelled, nil) }
 
         var options = job.options
         if options.signingIdentity.isEmpty { options.signingIdentity = settings.signingIdentity }
-        let arguments = ConversionCommand.arguments(script: script, folder: job.folder, keys: keys, options: options)
+        let ignoreSettings = support?.ignoreSettings ?? true
+        if !ignoreSettings { job.note("This nxnative's script has no --ignore-settings: the Settings block at its top applies to this build too.") }
+        let arguments = ConversionCommand.arguments(script: script, folder: job.folder, keys: keys, options: options, ignoreSettings: ignoreSettings)
         var variables = env.variables
         variables["PYTHONUNBUFFERED"] = "1"
         job.note("$ " + ([python] + arguments).map(Shell.quoteIfNeeded).joined(separator: " "))

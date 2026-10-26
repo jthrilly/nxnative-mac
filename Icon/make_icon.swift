@@ -1,6 +1,6 @@
 // Renders nxnative Converter's app icon, a 1024 x 1024 PNG on the macOS icon grid (an 824 px square with continuous corners, 100 px margins, a soft drop shadow):
-// a Mac window between two controller halves in red and blue, a game that plays on the Mac. scripts/build_converter_app.py runs it and makes AppIcon.icns from the PNG.
-// Usage: swift dm/mac/converter/Icon/make_icon.swift <out.png>
+// a Mac window between two controller halves in red and blue, a game that plays on the Mac. scripts/build_app.py runs it and makes AppIcon.icns from the PNG.
+// Usage: swift Icon/make_icon.swift <out.png>
 import CoreGraphics
 import Foundation
 import ImageIO

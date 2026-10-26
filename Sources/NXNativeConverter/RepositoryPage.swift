@@ -65,9 +65,6 @@ private struct CheckoutForm: View {
         .formStyle(.grouped)
     }
 
-    private static let converterUpdateMessage = "The checkout has changes to the converter since this copy was built. "
-        + "Rebuilding takes a minute; the app then opens again."
-
     private var waitNote: some View {
         Text("Updates wait until the conversion has finished.").foregroundStyle(.secondary)
     }
@@ -91,18 +88,8 @@ private struct CheckoutForm: View {
     }
 
     @ViewBuilder private var notices: some View {
-        if model.converterUpdateAvailable || model.lastGitError != nil {
-            Section {
-                if model.converterUpdateAvailable {
-                    PageStatusRow("A new version of nxnative Converter is available", subtitle: Self.converterUpdateMessage, symbol: "sparkles", tone: .brand,
-                                  symbolFont: .title2) {
-                        Button("Rebuild and Relaunch") { Task { await model.rebuildConverter() } }
-                            .buttonStyle(.bordered)
-                            .disabled(!model.canRebuildConverter)
-                    }
-                }
-                if let error = model.lastGitError { Notice(.failure, message: error, onCard: false) }
-            }
+        if let error = model.lastGitError {
+            Section { Notice(.failure, message: error, onCard: false) }
         }
     }
 

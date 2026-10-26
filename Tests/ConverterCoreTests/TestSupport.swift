@@ -1,4 +1,4 @@
-// Helpers shared by the ConverterCore tests: temporary folders, synthesized PFS0 files, the repository root, a thread-safe collector
+// Helpers shared by the ConverterCore tests: temporary folders, synthesized PFS0 files, nxnative checkouts (a real one, a stand-in), a thread-safe collector
 import Foundation
 @testable import ConverterCore
 
@@ -50,12 +50,25 @@ func pfs0(_ names: [String]) -> Data {
 
 func ticket(_ tid: UInt64) -> String { NSPScanner.hex16(tid) + "0000000000000000.tik" }
 
-/// The repository this test file is in: <repo>/dm/mac/converter/Tests/ConverterCoreTests/TestSupport.swift
-let repositoryRoot: URL = {
-    var u = URL(fileURLWithPath: #filePath)
-    for _ in 0..<6 { u = u.deletingLastPathComponent() }
-    return u
-}()
+/// The nxnative checkout NXNATIVE_REPO names: the tests that check the app against nxnative's own files (its profiles, the script's tool folders, the
+/// languages) run only with one
+let nxnativeCheckout: URL? = ProcessInfo.processInfo.environment["NXNATIVE_REPO"].flatMap {
+    $0.isEmpty ? nil : URL(fileURLWithPath: ($0 as NSString).expandingTildeInPath, isDirectory: true).standardizedFileURL
+}
+
+/// The NSP script's argument lines for the options the app passes, as nxnative declares them
+let scriptOptionLines = """
+    ap.add_argument('--platform', choices=('ios', 'mac', 'mac-app'), help='')
+    ap.add_argument('--progress', choices=('auto', 'bar', 'lines', 'json', 'off'), help='')
+    ap.add_argument('--ignore-settings', action='store_true', help='')
+    """
+
+/// A folder the repository check takes for nxnative: the NSP script (with the given argument lines) and nx_extract's Program.cs
+func standInCheckout(_ t: TempDir, script: String = scriptOptionLines) throws -> URL {
+    try t.file("nxnative/scripts/build_ipa_from_nsp.py", Data(script.utf8))
+    try t.file("nxnative/dm/tools/nx_extract/Program.cs")
+    return t.url.appendingPathComponent("nxnative", isDirectory: true)
+}
 
 final class Box<T: Sendable>: @unchecked Sendable {
     private let lock = NSLock()

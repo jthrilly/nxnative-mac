@@ -1,0 +1,52 @@
+# Builds the app and runs its tests on GitHub's Xcode 27 image (macOS 27, Apple silicon only), with NXNATIVE_REPO naming a checkout of nxnative's main, so the
+# tests that read nxnative's own files run too. The weekly run catches an nxnative change the app has to follow.
+name: tests
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '17 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+# Actions are pinned to commit SHAs (the tag in the comment): a tag can be moved, a SHA cannot
+jobs:
+  tests:
+    name: Build and test
+    runs-on: xcode-27   # GitHub keys its macOS images by Xcode version; there is no macos-27 label
+    timeout-minutes: 30
+    env:
+      NXNATIVE_REPO: ${{ github.workspace }}/nxnative
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: app
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: seedds/nxnative
+          ref: main
+          path: nxnative
+          persist-credentials: false
+      - name: Toolchain
+        run: |
+          swift --version
+          echo "nxnative $(git -C nxnative log -1 --format='%h %s')"
+      - name: Build
+        run: swift build --package-path app
+      - name: Swift tests
+        run: swift test --package-path app
+      - name: Build script tests
+        run: python3 -m unittest discover -s app/scripts -p 'test_*.py'

@@ -37,8 +37,8 @@ struct ShellEnvironmentTests {
         #expect(Set(env.path).count == env.path.count)
     }
 
-    @Test func toolPathsMatchTheScript() throws {
-        let text = try String(contentsOf: repositoryRoot.appendingPathComponent("scripts/build_ipa_from_nsp.py"), encoding: .utf8)
+    @Test(.enabled(if: nxnativeCheckout != nil, "NXNATIVE_REPO names no nxnative checkout")) func toolPathsMatchTheScript() throws {
+        let text = try String(contentsOf: try #require(nxnativeCheckout).appendingPathComponent("scripts/build_ipa_from_nsp.py"), encoding: .utf8)
         #expect(text.contains("TOOL_PATHS = ['/opt/homebrew/bin', '/usr/local/bin', '/usr/local/share/dotnet', os.path.expanduser('~/.dotnet')]"))
         #expect(text.contains("PATH=os.pathsep.join(TOOL_PATHS + ["))   // in front of the PATH the script gets
     }

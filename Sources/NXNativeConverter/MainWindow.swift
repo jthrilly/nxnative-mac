@@ -91,7 +91,6 @@ extension AppModel {
     var canUpdate: Bool { canOperate && incomingCount > 0 }
     var canDiscardAndUpdate: Bool { canOperate && pullBlockedByLocalChanges }
     var canInstallMissing: Bool { canOperate && missingRunFixes > 0 }
-    var canRebuildConverter: Bool { canOperate && converterUpdateAvailable }
 
     /// Discard Local Changes and Update, naming the local commits too when the reset takes them off the branch
     var discardTitle: String {

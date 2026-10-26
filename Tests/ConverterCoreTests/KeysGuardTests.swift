@@ -52,7 +52,7 @@ struct KeysGuardTests {
         #expect(KeysGuard.reason(toolName: "Read", command: nil, paths: ["/Users/player/.switch/prod.keys"], keyFiles: keys) != nil)
         #expect(KeysGuard.reason(toolName: "Grep", command: nil, paths: ["/Users/player/.switch/prod.keys"], keyFiles: keys) != nil)
         #expect(KeysGuard.reason(toolName: "Grep", command: nil, paths: ["/Users/player/.switch"], keyFiles: keys) != nil)   // the folder's search shows the file too
-        #expect(KeysGuard.reason(toolName: "Read", command: nil, paths: ["/w/dm/mac/converter/Sources/ConverterCore/KeysGuard.swift"], keyFiles: keys) == nil)
+        #expect(KeysGuard.reason(toolName: "Read", command: nil, paths: ["/w/Sources/ConverterCore/KeysGuard.swift"], keyFiles: keys) == nil)
         #expect(KeysGuard.reason(toolName: "Grep", command: nil, paths: ["/w/dm/host"], keyFiles: keys) == nil)
         #expect(KeysGuard.reason(toolName: "Glob", command: nil, paths: ["**/*.keys"], keyFiles: keys) != nil)
     }

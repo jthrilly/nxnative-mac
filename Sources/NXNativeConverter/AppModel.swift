@@ -60,7 +60,6 @@ struct LibraryEntry: Identifiable {
     private(set) var records: [ConversionRecord] = []
     private(set) var library: [LibraryEntry] = []
     private(set) var commitsBehind: [String: Int] = [:]   // nxnative commit a game was built with → commits from it to HEAD
-    private(set) var converterUpdateAvailable = false
     private(set) var pullBlockedByLocalChanges = false
     private(set) var lastGitError: String?
     private(set) var fetchingInBackground = false   // the launch-time fetch: it does not hold the console, and any git operation stops it first
@@ -84,11 +83,8 @@ struct LibraryEntry: Identifiable {
     @ObservationIgnored private var installedApps: [InstalledGameApp] = []
     @ObservationIgnored private var launched = false
     @ObservationIgnored var recheckWhenActive = false   // a fix runs in Terminal: check again when the user comes back
-    @ObservationIgnored var relaunchBundle: String?     // Rebuild and Relaunch: opened again once this process has exited
     @ObservationIgnored private var backgroundFetch: Task<Void, Never>?
     @ObservationIgnored private let rechecks = LatestRun()
-
-    static var isBundled: Bool { Bundle.main.bundleURL.pathExtension == "app" }
 
     init() {
         settings.onChange = { [weak self] key in self?.settingChanged(key) }
@@ -301,7 +297,6 @@ struct LibraryEntry: Identifiable {
 
     func cancelQuit() {
         isQuitting = false
-        relaunchBundle = nil
         startNextIfPossible()
     }
 
@@ -413,7 +408,6 @@ struct LibraryEntry: Identifiable {
         refreshingRepository = true
         repository = await git.status()
         refreshingRepository = false
-        await checkConverterUpdate()
     }
 
     /// Runs a git operation or a fix with the console as its output; nothing else of the kind (and no conversion) runs meanwhile. Stop cancels work (and the
@@ -537,46 +531,6 @@ struct LibraryEntry: Identifiable {
         await refreshRepository()
         rebuildLibrary()
         await refreshCommitsBehind()
-    }
-
-    /// A newer converter is in the checkout when the last commit that touched its sources is not in the commit this app was built from
-    private func checkConverterUpdate() async {
-        guard Self.isBundled, let built = ConverterInfo.builtFromCommit, let git = gitRepository, repository?.isNXNative == true,
-              let last = await git.lastCommit(touching: ConverterInfo.sourcePaths) else { converterUpdateAvailable = false; return }
-        converterUpdateAvailable = !(await git.isAncestor(last, of: built))
-    }
-
-    /// Rebuild and Relaunch: build_converter_app.py replaces this bundle, then the app quits (asking first if something runs) and opens again once it has exited
-    func rebuildConverter() async {
-        guard Self.isBundled, let env = environment else { return }
-        if let run = activePortRun {
-            alert = AlertItem(title: "An agent is running", message: "\(run.kind.displayName) is working on \(run.gameName). Rebuild the converter when the run has finished, or stop it first.")
-            return
-        }
-        guard let python = pythonExecutable else {
-            alert = AlertItem(title: "Python 3 was not found", message: "Choose a Python interpreter in Settings › General.")
-            return
-        }
-        let repo = settings.repositoryURL, bundle = Bundle.main.bundlePath
-        var ok = false
-        await operate("Rebuilding nxnative Converter", startNext: false, { [self] in
-            ok = await console.run(python, [repo.appendingPathComponent("scripts/build_converter_app.py").path, "-o", bundle],
-                                   environment: env.variables, currentDirectory: repo) == 0
-        })
-        guard ok else { return startNextIfPossible() }
-        console.append("Relaunching…", .note)
-        relaunchBundle = bundle
-        NSApp.terminate(nil)
-    }
-
-    /// Called as the app terminates: the relaunch waits for this process to exit (open on an app that still runs only activates it)
-    func relaunchIfAsked() {
-        guard let bundle = relaunchBundle else { return }
-        do {
-            _ = try Process.run(URL(fileURLWithPath: "/bin/sh"), arguments: AppScripts.relaunchArguments(bundle: bundle, pid: ProcessInfo.processInfo.processIdentifier))
-        } catch {
-            NSLog("nxnative Converter could not relaunch itself: %@", error.localizedDescription)
-        }
     }
 
     // MARK: Prerequisites

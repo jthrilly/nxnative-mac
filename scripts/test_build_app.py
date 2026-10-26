@@ -1,5 +1,4 @@
-"""scripts/build_converter_app.py without building Swift: nxnative Converter's Info.plist (the folders and game files it opens, the imported game file type, the repository and
-commit it was built from), the bundle assemble() writes around a stand-in binary (layout, PkgInfo, the staging folder swapped into place with nothing left beside it, a converter
+"""scripts/build_app.py without building Swift: nxnative Converter's Info.plist (the folders and game files it opens, the imported game file type), the bundle assemble() writes around a stand-in binary (layout, PkgInfo, the staging folder swapped into place with nothing left beside it, a converter
 already there replaced and sent to the Trash, any other app at -o left as it is, the swap on a volume without RENAME_SWAP, the old app kept when assembling fails, an ad-hoc
 signature), and the checks made before the build (the output folder, an app that is not the converter, the exit codes)."""
 import contextlib
@@ -15,25 +14,22 @@ import tempfile
 import unittest
 from unittest import mock
 
-REPO = Path(__file__).resolve().parents[3]
-spec = importlib.util.spec_from_file_location('build_converter_app', REPO / 'scripts/build_converter_app.py')
+spec = importlib.util.spec_from_file_location('build_app', Path(__file__).resolve().parent / 'build_app.py')
 bca = importlib.util.module_from_spec(spec); spec.loader.exec_module(bca)
-SHA = '0123456789abcdef0123456789abcdef01234567'
 APP = 'nxnative Converter.app'
 
 
 class Plist(unittest.TestCase):
     def test_keys(self):
-        p = bca.info_plist(REPO, SHA, 1234, True)
+        p = bca.info_plist(1234, True)
         self.assertEqual((p['CFBundleName'], p['CFBundleDisplayName'], p['CFBundleIdentifier'], p['CFBundleExecutable'], p['CFBundlePackageType']),
                          ('nxnative Converter', 'nxnative Converter', 'org.nxnative.converter', 'NXNativeConverter', 'APPL'))
         self.assertEqual((p['CFBundleShortVersionString'], p['CFBundleVersion'], p['LSMinimumSystemVersion'], p['CFBundleIconFile']), ('1.0', '1234', '27.0', 'AppIcon'))
         self.assertEqual((p['NSPrincipalClass'], p['NSHighResolutionCapable'], p['LSApplicationCategoryType']), ('NSApplication', True, 'public.app-category.utilities'))
-        self.assertEqual((p['NXConverterRepository'], p['NXConverterCommit']), (str(REPO), SHA))
         self.assertEqual(plistlib.loads(plistlib.dumps(p)), p)
 
     def test_document_types(self):   # folders and the game files: dropped on the Dock icon, Open With; never the default app for either
-        p = bca.info_plist(REPO, SHA, 1, False)
+        p = bca.info_plist(1, False)
         docs = {t: d for d in p['CFBundleDocumentTypes'] for t in d['LSItemContentTypes']}
         self.assertEqual(sorted(docs), ['org.nxnative.switch-game', 'public.folder'])
         self.assertEqual({(d['CFBundleTypeRole'], d['LSHandlerRank']) for d in docs.values()}, {('Viewer', 'Alternate')})
@@ -42,9 +38,9 @@ class Plist(unittest.TestCase):
         self.assertEqual(sorted(ut['UTTypeTagSpecification']['public.filename-extension']), ['nsp', 'nsz', 'xci', 'xcz'])
 
     def test_without_git_or_icon(self):
-        p = bca.info_plist(Path('/x/nxnative'), None, None, None)
-        self.assertNotIn('NXConverterCommit', p); self.assertNotIn('CFBundleIconFile', p)
-        self.assertEqual((p['CFBundleVersion'], p['NXConverterRepository']), ('1', '/x/nxnative'))
+        p = bca.info_plist(None, None)
+        self.assertNotIn('CFBundleIconFile', p)
+        self.assertEqual(p['CFBundleVersion'], '1')
 
     def test_tool_path(self):   # the caller's PATH first (its swift), then the tool folders a GUI app lacks
         with mock.patch.dict(os.environ, PATH='/my/bin:/usr/bin'):
@@ -89,7 +85,7 @@ class Assemble(unittest.TestCase):
         (self.out / 'Contents/keep').write_text('mine')
 
     def assemble(self, icon=True, count=7, **kw):
-        return bca.assemble(self.binary, self.out, self.icon if icon else None, bca.info_plist(REPO, SHA, count, icon), **kw)
+        return bca.assemble(self.binary, self.out, self.icon if icon else None, bca.info_plist(count, icon), **kw)
 
     def test_layout(self):
         self.assertEqual(self.assemble(), self.out)
@@ -100,7 +96,7 @@ class Assemble(unittest.TestCase):
         self.assertTrue(os.access(c / 'MacOS/NXNativeConverter', os.X_OK))
         self.assertEqual((c / 'Resources/AppIcon.icns').read_bytes(), self.icon.read_bytes())
         p = plistlib.loads((c / 'Info.plist').read_bytes())
-        self.assertEqual((p['CFBundleExecutable'], p['CFBundleVersion'], p['CFBundleIconFile'], p['NXConverterCommit']), ('NXNativeConverter', '7', 'AppIcon', SHA))
+        self.assertEqual((p['CFBundleExecutable'], p['CFBundleVersion'], p['CFBundleIconFile']), ('NXNativeConverter', '7', 'AppIcon'))
         self.assertEqual([p.name for p in self.apps.iterdir()], [APP])   # no staging folder beside it
         self.assertEqual(list(self.bin.iterdir()), [])
 

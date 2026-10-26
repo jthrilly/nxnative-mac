@@ -125,14 +125,6 @@ public struct GitRepository: Sendable {
         await output(["rev-list", "--count", "\(commit)..\(to)"]).flatMap { Int($0) }
     }
 
-    public func isAncestor(_ ancestor: String, of descendant: String) async -> Bool {
-        (try? await run(["merge-base", "--is-ancestor", ancestor, descendant]))?.status == 0
-    }
-
-    public func lastCommit(touching paths: [String]) async -> String? {
-        await output(["log", "-1", "--format=%H", "--"] + paths)
-    }
-
     public static func clone(remote: String, to destination: URL, environment: ShellEnvironment, onLine: @escaping @Sendable (String) -> Void) async throws {
         let p = Subprocess(executable: "git", arguments: network + ["clone", "--progress", remote, destination.path], environment: gitEnvironment(environment))
         p.splitsCarriageReturns = true

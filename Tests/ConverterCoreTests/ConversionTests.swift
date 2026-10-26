@@ -20,6 +20,30 @@ struct ConversionTests {
                            "--mac-sign", "Developer ID Application: A (TEAM)"])
     }
 
+    @Test func withoutIgnoreSettings() {   // an older nxnative's script, which has no --ignore-settings
+        #expect(ConversionCommand.arguments(script: script, folder: folder, keys: keys, options: ConversionOptions(), ignoreSettings: false) == base.dropLast())
+    }
+
+    @Test func scriptSupport() {
+        func flags(_ s: ScriptSupport) -> [Bool] { [s.macApp, s.jsonProgress, s.ignoreSettings] }
+        #expect(flags(ScriptSupport(script: scriptOptionLines)) == [true, true, true])
+        #expect(ScriptSupport(script: scriptOptionLines).missing == [])
+        let older = scriptOptionLines.split(separator: "\n").filter { !$0.contains("--ignore-settings") }.joined(separator: "\n")
+        #expect(flags(ScriptSupport(script: older)) == [true, true, false])
+        #expect(ScriptSupport(script: older).missing == [])
+        let oldest = "ap.add_argument('--platform', choices=('ios', 'mac'), help='')\nap.add_argument('--progress', choices=('auto', 'off'))\n"
+        #expect(ScriptSupport(script: oldest).missing == ["--platform mac-app", "--progress json"])
+        // only the parser's lines count: an option named in a comment or a message is not declared
+        #expect(flags(ScriptSupport(script: "# --ignore-settings: 'json' 'mac-app'\nsay('--progress json')\n")) == [false, false, false])
+        #expect(ScriptSupport(repository: URL(fileURLWithPath: "/nonexistent")) == nil)
+    }
+
+    @Test(.enabled(if: nxnativeCheckout != nil, "NXNATIVE_REPO names no nxnative checkout")) func checkoutSupportsTheApp() throws {
+        let repository = try #require(nxnativeCheckout)
+        let support = try #require(ScriptSupport(repository: repository))
+        #expect(support.missing == [])
+    }
+
     @Test func scriptPath() {
         #expect(ConversionCommand.script(in: URL(fileURLWithPath: "/repo")).path == "/repo/scripts/build_ipa_from_nsp.py")
     }
@@ -45,8 +69,8 @@ struct ConversionTests {
         #expect(ConversionCommand.languages[2] == (code: "ja", name: "Japanese"))
     }
 
-    @Test func languagesMatchNACP() throws {
-        let text = try String(contentsOf: repositoryRoot.appendingPathComponent("dm/tools/nacp.py"), encoding: .utf8)
+    @Test(.enabled(if: nxnativeCheckout != nil, "NXNATIVE_REPO names no nxnative checkout")) func languagesMatchNACP() throws {
+        let text = try String(contentsOf: try #require(nxnativeCheckout).appendingPathComponent("dm/tools/nacp.py"), encoding: .utf8)
         for (code, name) in ConversionCommand.languages { #expect(text.contains("('\(code)', '\(name)')"), "\(code)") }
     }
 

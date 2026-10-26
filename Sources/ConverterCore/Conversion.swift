@@ -28,9 +28,37 @@ public struct ConversionOptions: Sendable, Equatable, Codable {
     }
 }
 
+/// What a checkout's NSP script supports of the options the app runs it with, read from its argument parser's lines. An older nxnative has no
+/// --ignore-settings, and conversions go without it; one older still has no Mac app or JSON progress, which a conversion cannot do without
+public struct ScriptSupport: Sendable {
+    public var macApp: Bool
+    public var jsonProgress: Bool
+    public var ignoreSettings: Bool
+
+    public init(script: String) {
+        let declared = script.split(separator: "\n").filter { $0.contains("add_argument(") }
+        func has(_ flag: String, choice: String? = nil) -> Bool {
+            declared.contains { line in line.contains("'\(flag)'") && (choice.map { line.contains("'\($0)'") } ?? true) }
+        }
+        macApp = has("--platform", choice: "mac-app")
+        jsonProgress = has("--progress", choice: "json")
+        ignoreSettings = has("--ignore-settings")
+    }
+
+    /// nil when the repository has no script it can read
+    public init?(repository: URL) {
+        guard let text = try? String(contentsOf: ConversionCommand.script(in: repository), encoding: .utf8) else { return nil }
+        self.init(script: text)
+    }
+
+    /// The options a conversion cannot do without that the script lacks
+    public var missing: [String] { [("--platform mac-app", macApp), ("--progress json", jsonProgress)].filter { !$0.1 }.map(\.0) }
+}
+
 public enum ConversionCommand {
-    public static func arguments(script: URL, folder: URL, keys: URL, options: ConversionOptions) -> [String] {
-        var args = ["-u", script.path, folder.path, "-k", keys.path, "--platform", "mac-app", "--progress", "json", "--ignore-settings"]
+    public static func arguments(script: URL, folder: URL, keys: URL, options: ConversionOptions, ignoreSettings: Bool = true) -> [String] {
+        var args = ["-u", script.path, folder.path, "-k", keys.path, "--platform", "mac-app", "--progress", "json"]
+        if ignoreSettings { args.append("--ignore-settings") }
         for (flag, value) in [("-l", options.language), ("-p", options.package), ("--app-name", options.appName), ("--bundle-id", options.bundleID)] where !value.isEmpty {
             args += [flag, value]
         }

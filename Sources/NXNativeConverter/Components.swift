@@ -137,16 +137,15 @@ struct PageStatusRow<Actions: View>: View {
     private let subtitle: String?
     private let symbol: String?
     private let tone: Tone
-    private let symbolFont: Font
     private let hasActions: Bool
     private let actions: Actions
 
-    init(_ title: String, subtitle: String? = nil, symbol: String?, tone: Tone, symbolFont: Font = .title, @ViewBuilder actions: () -> Actions) {
-        self.init(title: title, subtitle: subtitle, symbol: symbol, tone: tone, symbolFont: symbolFont, hasActions: true, actions: actions)
+    init(_ title: String, subtitle: String? = nil, symbol: String?, tone: Tone, @ViewBuilder actions: () -> Actions) {
+        self.init(title: title, subtitle: subtitle, symbol: symbol, tone: tone, hasActions: true, actions: actions)
     }
 
-    fileprivate init(title: String, subtitle: String?, symbol: String?, tone: Tone, symbolFont: Font, hasActions: Bool, actions: () -> Actions) {
-        self.title = title; self.subtitle = subtitle; self.symbol = symbol; self.tone = tone; self.symbolFont = symbolFont
+    fileprivate init(title: String, subtitle: String?, symbol: String?, tone: Tone, hasActions: Bool, actions: () -> Actions) {
+        self.title = title; self.subtitle = subtitle; self.symbol = symbol; self.tone = tone
         self.hasActions = hasActions; self.actions = actions()
     }
 
@@ -162,7 +161,7 @@ struct PageStatusRow<Actions: View>: View {
         HStack(spacing: Space.m) {
             Group {
                 if let symbol {
-                    Image(systemName: symbol).font(symbolFont).foregroundStyle(tone.glyph)
+                    Image(systemName: symbol).font(.title).foregroundStyle(tone.glyph)
                 } else {
                     ProgressView().controlSize(.small)
                 }
@@ -182,8 +181,8 @@ struct PageStatusRow<Actions: View>: View {
 }
 
 extension PageStatusRow where Actions == EmptyView {
-    init(_ title: String, subtitle: String? = nil, symbol: String?, tone: Tone, symbolFont: Font = .title) {
-        self.init(title: title, subtitle: subtitle, symbol: symbol, tone: tone, symbolFont: symbolFont, hasActions: false) { EmptyView() }
+    init(_ title: String, subtitle: String? = nil, symbol: String?, tone: Tone) {
+        self.init(title: title, subtitle: subtitle, symbol: symbol, tone: tone, hasActions: false) { EmptyView() }
     }
 }
 

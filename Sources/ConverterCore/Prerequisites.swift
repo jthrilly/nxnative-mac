@@ -128,7 +128,7 @@ public struct PrerequisiteChecker: Sendable {
 
     // ---- the checks ----
 
-    private func check(_ id: PrerequisiteID, probe: Task<PythonProbe?, Never>) async -> PrerequisiteCheck {
+    func check(_ id: PrerequisiteID, probe: Task<PythonProbe?, Never>) async -> PrerequisiteCheck {
         var c = PrerequisiteCheck(id: id, title: Self.title(id), state: .unknown, detail: "", required: true, fixes: [])
         func result(_ state: PrerequisiteState, _ detail: String, _ fixes: [FixAction] = []) -> PrerequisiteCheck {
             c.state = state; c.detail = detail; c.fixes = state == .ok ? [] : fixes; return c
@@ -194,11 +194,22 @@ public struct PrerequisiteChecker: Sendable {
         case .repository:
             let fm = FileManager.default
             let isNX = ["scripts/build_ipa_from_nsp.py", "dm/tools/nx_extract/Program.cs"].allSatisfy { fm.fileExists(atPath: repository.appendingPathComponent($0).path) }
-            if isNX { return result(.ok, repository.path) }
+            let choose = FixAction.chooseFolder(title: "Choose the nxnative Folder…")
+            if isNX {
+                guard let support = ScriptSupport(repository: repository) else { return result(.missing, "\(repository.path)\nIts NSP script cannot be read", [choose]) }
+                if !support.missing.isEmpty {
+                    return result(.missing, "\(repository.path)\nIts NSP script is older than this app: it has no \(support.missing.joined(separator: " or ")). "
+                                  + "Update nxnative, or choose a newer checkout.", [choose])
+                }
+                if !support.ignoreSettings {
+                    return result(.warning, "\(repository.path)\nIts NSP script has no --ignore-settings, so the Settings block at the top of the script applies to "
+                                  + "the app's builds too. A newer nxnative has it.")
+                }
+                return result(.ok, repository.path)
+            }
             let exists = fm.fileExists(atPath: repository.path)
             let clone = FixAction.run(title: "Download nxnative", shellCommand: "git clone --progress \(GitRepository.defaultRemote) " + Self.shellQuote(repository.path))
-            return result(.missing, exists ? "\(repository.path) is not an nxnative checkout" : "\(repository.path) does not exist",
-                          [.chooseFolder(title: "Choose the nxnative Folder…")] + (exists ? [] : [clone]))
+            return result(.missing, exists ? "\(repository.path) is not an nxnative checkout" : "\(repository.path) does not exist", [choose] + (exists ? [] : [clone]))
         case .keys:
             let size = keys.flatMap { try? $0.resourceValues(forKeys: [.fileSizeKey, .isRegularFileKey]) }
             if let keys, size?.isRegularFile == true, (size?.fileSize ?? 0) > 0 { return result(.ok, keys.path) }

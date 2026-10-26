@@ -83,7 +83,7 @@ private struct ConversionPane: View {
                 Toggle("Notify when a conversion ends", isOn: $settings.notifyWhenDone)
             } footer: {
                 if !Notifier.isAvailable {
-                    Text("Notifications need the app bundle (scripts/build_converter_app.py); the Dock icon bounces instead.").foregroundStyle(.secondary)
+                    Text("Notifications need the app bundle (scripts/build_app.py); the Dock icon bounces instead.").foregroundStyle(.secondary)
                 }
             }
         }
