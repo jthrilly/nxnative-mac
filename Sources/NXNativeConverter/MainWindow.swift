@@ -25,11 +25,12 @@ import SwiftUI
 
     fileprivate func recheckFiles() { fileChecks += 1 }
 
-    /// Library › Refresh: looks for game apps again, then checks the files again
-    func refreshLibrary(_ model: AppModel) async {
+    /// Library › Refresh: looks for game apps again, then checks the files again. `activated`: the app became active, so the checkout's status and
+    /// profiles are read again too (they change when nxnative is pulled outside the app)
+    func refreshLibrary(_ model: AppModel, activated: Bool = false) async {
         guard !refreshingLibrary else { return }
         refreshingLibrary = true
-        await model.refreshLibrary()
+        if activated { await model.refreshAfterActivation() } else { await model.refreshLibrary() }
         refreshingLibrary = false
         recheckFiles()
     }
@@ -153,7 +154,9 @@ struct MainWindow: View {
         .task(id: PortPaths(model.ports, statuses: model.portStatuses, generation: window.fileChecks, shown: model.shownPortID)) {
             await window.checkPortFiles(PortPaths.urls(model.ports))
         }
-        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in window.recheckFiles() }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            Task { await window.refreshLibrary(model, activated: true) }
+        }
         .onChange(of: model.library.map(\.id)) { window.prune(model) }
         .onChange(of: model.records.map(\.id)) { window.prune(model) }
     }

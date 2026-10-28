@@ -106,6 +106,8 @@ The pages:
 - **Library**: the nxnative game apps in the install folder, `/Applications` and `~/Applications`, and the games prepared as Xcode projects. Each shows the
   nxnative commit that built it and how far the checkout has moved since, and can be rebuilt with the current checkout. A game app's settings are under
   **Game Settings…** (see [Game settings](#game-settings)). The Library also keeps the history of every conversion.
+  It looks again each time the app comes to the front, so games built or installed outside the app, and a pull of nxnative, show without a relaunch. A game
+  app has to be in one of those folders, or in a game folder the app converted before.
 - **Ports**: the games handed to a coding agent (see [Ports](#ports)).
 - **nxnative**: the checkout (see [Choosing the nxnative checkout](#choosing-the-nxnative-checkout)).
 - **Setup**: what a conversion needs, each item with its fix. Install Missing runs the fixes that need neither a password nor administrator rights. The items:

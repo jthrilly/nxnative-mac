@@ -155,6 +155,15 @@ struct LibraryEntry: Identifiable {
         }
     }
 
+    /// When the app becomes active: games built or installed outside the app (the NSP script in Terminal, Finder), and a checkout that moved (a pull, a sync),
+    /// show without a relaunch. Reads only; a git operation or fix that is running refreshes what it changed itself
+    func refreshAfterActivation() async {
+        guard launched, isReady, !isQuitting, !console.isRunning, !refreshingRepository else { return }
+        await reloadProfiles()
+        await refreshRepository()
+        await refreshLibrary()
+    }
+
     private func settingChanged(_ key: AppSettings.Key) {
         guard launched, isReady else { return }
         switch key {
