@@ -38,19 +38,9 @@ struct BuildEventTests {
         #expect(BuildEvent.decode(#"{"ev": "say", "msg": "Pokémon é", "t": 1.0}"#) == .say("Pokémon é"))
     }
 
-    @Test func game() {
-        let line = #"{"ev": "game", "title_id": "010015100B514000", "profile": "010015100B514000", "name": "Super Mario Bros. Wonder", "version": "1.2.1", "package": "v327680", "provisional": false, "derived": true, "platform": "mac-app", "out": "/Games/Wonder/Super Mario Bros. Wonder.app", "icon": "/Games/Wonder/010015100B514000_build/extract/v327680/icon.jpg", "t": 1.0}"#
-        #expect(BuildEvent.decode(line) == .game(GameInfo(titleID: "010015100B514000", profile: "010015100B514000", name: "Super Mario Bros. Wonder", version: "1.2.1",
-                                                          package: "v327680", provisional: false, derived: true, platform: "mac-app",
-                                                          output: "/Games/Wonder/Super Mario Bros. Wonder.app",
-                                                          icon: "/Games/Wonder/010015100B514000_build/extract/v327680/icon.jpg")))
-    }
-
-    @Test func result() {
-        #expect(BuildEvent.decode(#"{"ev": "result", "ok": true, "platform": "mac-app", "path": "/G/W.app", "size": 2040109465, "command": "", "t": 1.0}"#)
-                == .result(BuildResult(ok: true, platform: "mac-app", path: "/G/W.app", sizeBytes: 2040109465, command: "")))
-        #expect(BuildEvent.decode(#"{"ev": "result", "ok": true, "platform": "xcode", "path": "/G/NxNative.xcworkspace", "size": null, "command": "", "t": 1.0}"#)
-                == .result(BuildResult(ok: true, platform: "xcode", path: "/G/NxNative.xcworkspace", sizeBytes: nil, command: "")))
+    @Test func eventsTheGuidanceDoesNotListAreIgnored() {   // docs/frontends.md lists stage, step, progress, stage_end and say; anything else is unknown
+        #expect(BuildEvent.decode(#"{"ev": "game", "title_id": "010015100B514000", "out": "/G/W.app", "t": 1.0}"#) == .unknown("game"))
+        #expect(BuildEvent.decode(#"{"ev": "result", "ok": true, "path": "/G/W.app", "t": 1.0}"#) == .unknown("result"))
     }
 
     @Test func unknownAndNotEvents() {

@@ -141,6 +141,8 @@ struct AppCommands: Commands {
     }
 
     @ViewBuilder private var libraryMenu: some View {
+        libraryItem(.gameSettings)
+            .keyboardShortcut(",", modifiers: [.command, .option])
         libraryItem(.rebuild)
         libraryItem(.openLog)
         libraryItem(.openSaveFolder)

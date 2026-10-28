@@ -52,14 +52,8 @@ enum JobState: Equatable {
 
     var match: ProfileMatch { GameProfiles.match(scan, in: profiles, package: options.package) }
 
-    var name: String {
-        if let n = build.game?.name, !n.isEmpty { return n }
-        return scan.displayName
-    }
-    var titleID: String? {
-        if let t = build.game?.titleID, !t.isEmpty { return t }
-        return scan.titleIDString
-    }
+    var name: String { scan.displayName }
+    var titleID: String? { scan.titleIDString }
     var isEditable: Bool { state == .queued }
     var canRetry: Bool { !cannotConvert && (state == .failed || state == .cancelled) }
     var canSurvey: Bool { !cannotConvert && match == .noProfile && (state == .queued || state.isFinished) }
@@ -68,11 +62,11 @@ enum JobState: Equatable {
     /// Prepared as an Xcode project: there is no app, Xcode builds and installs it
     var isXcodeProject: Bool { state == .succeeded && !options.surveyOnly && xcodeProject != nil }
 
-    /// The game's art: the icon the script extracted, else the newest one a run of this folder extracted before
-    var artwork: ArtworkSource? {
-        if let path = build.game?.icon, !path.isEmpty { return .icon(path) }
-        return titleID.map { .gameFolder(folder, titleID: $0) }
-    }
+    /// The game's art: the newest icon a run of this folder extracted
+    var artwork: ArtworkSource? { titleID.map { .gameFolder(folder, titleID: $0) } }
+
+    /// Where the Mac app is made (the script's -o): named after the App name option, else the game
+    var appOutput: URL { ConversionCommand.appOutput(folder: folder, name: options.appName.isEmpty ? name : options.appName) }
 
     /// Converted into a Mac app: the console docks
     var isMacApp: Bool { state == .succeeded && !options.surveyOnly && app != nil }
@@ -144,6 +138,8 @@ enum JobState: Equatable {
     func failureMessage(status: Int32) -> String { failure.message(status: status, lastError: build.log.last { $0.kind == .error }?.text) }
 
     func note(_ text: String) { buildStorage.appendNote(text, at: Date()); revision += 1 }
+
+    func buildFinished() { buildStorage.finish(); revision += 1 }
 
     func ingest(_ lines: [OutputLine]) {
         for line in lines {

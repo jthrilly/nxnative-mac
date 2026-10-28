@@ -90,6 +90,7 @@ struct LibraryInspector: View {
             LabeledContent("Workspace") { button("Open in Xcode", action: .play) }
         } else {
             LabeledContent("App") { button(LibraryAction.showInFinder.title, action: .showInFinder) }
+            LabeledContent("Settings") { button("Choose…", action: .gameSettings) }
             LabeledContent("Log") { button("Open", action: .openLog) }
             LabeledContent("Save Folder") { button("Open", action: .openSaveFolder) }
         }

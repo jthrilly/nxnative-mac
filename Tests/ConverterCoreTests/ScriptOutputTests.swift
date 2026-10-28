@@ -31,13 +31,9 @@ struct ScriptOutputTests {
     ]
     static let macApp = [
         #"{"ev": "say", "msg": "[16:13:54] app name: Game: Test; version: 1.0.1; bundle ID: org.nxnative.0100bbbb00000000; app: /Users/player/Games/Test Game/Game - Test.app", "t": 1792937634.773}"#,
-        #"{"ev": "game", "title_id": "0100BBBB00000000", "profile": "0100BBBB00000000", "name": "Game: Test", "version": "1.0.1", "package": "v0", "provisional": false, "derived": false, "platform": "mac-app", "out": "/Users/player/Games/Test Game/Game - Test.app", "icon": "/Users/player/Games/Test Game/0100BBBB00000000_build/extract/v0/icon.jpg", "t": 1792937634.773}"#,
-        #"{"ev": "result", "ok": true, "platform": "mac-app", "path": "/Users/player/Games/Test Game/Game - Test.app", "size": 10, "command": "", "t": 1792937634.775}"#,
         #"{"ev": "say", "msg": "[16:13:54] done: /Users/player/Games/Test Game/Game - Test.app (0.0 GB); open it from Finder. Its save is in ~/Library/Application Support/nxnative/0100BBBB00000000/, its log in ~/Library/Logs/nxnative/0100BBBB00000000.log", "t": 1792937634.775}"#,
     ]
     static let macRun = [
-        #"{"ev": "game", "title_id": "0100BBBB00000000", "profile": "0100BBBB00000000", "name": "Game: Test", "version": "1.0.1", "package": "v0", "provisional": false, "derived": false, "platform": "mac", "out": "", "icon": "/Users/player/Games/Test Game/0100BBBB00000000_build/extract/v0/icon.jpg", "t": 1792937634.797}"#,
-        #"{"ev": "result", "ok": true, "platform": "mac", "path": "", "size": null, "command": "run the game", "t": 1792937634.797}"#,
         #"{"ev": "say", "msg": "[16:13:54] done: the game runs on the Mac with this command (its save in /Users/player/Games/Test Game/0100BBBB00000000_build/run/save, kept from run to run; DM_WINDOW=1 opens a window, DM_AUDIO=1 plays sound):", "t": 1792937634.797}"#,
     ]
 
@@ -58,7 +54,7 @@ struct ScriptOutputTests {
 
     @Test func failsBeforeAnyStage() {
         let (_, state) = Self.fold(Self.noNSP)
-        #expect(state.stages.isEmpty && state.game == nil && state.result == nil && state.overallFraction == 0)
+        #expect(state.stages.isEmpty && state.overallFraction == 0)
         #expect(state.lastWarning == "no NSP with a readable title ID in /Users/player/Games/empty")
         let (_, skipped) = Self.fold(Self.emptyFile)
         #expect(skipped.log.map(\.kind) == [.info, .warning])
@@ -80,23 +76,20 @@ struct ScriptOutputTests {
         #expect(state.log.count == 5 + 6 + 1)
         #expect(state.log.filter { $0.kind == .warning }.count == 1)
         #expect(state.log[5].text == "---- last lines of /Users/player/Games/fake/010015100B514000_build/logs/extract_v0.log ----")
-        #expect(state.game == nil && state.result == nil)
+        #expect(!state.succeeded)
     }
 
-    @Test func finishedMacApp() {
-        let (_, state) = Self.fold(Self.macApp)
-        let app = "/Users/player/Games/Test Game/Game - Test.app"
-        #expect(state.game == GameInfo(titleID: "0100BBBB00000000", profile: "0100BBBB00000000", name: "Game: Test", version: "1.0.1", package: "v0", provisional: false,
-                                       derived: false, platform: "mac-app", output: app, icon: "/Users/player/Games/Test Game/0100BBBB00000000_build/extract/v0/icon.jpg"))
-        #expect(state.result == BuildResult(ok: true, platform: "mac-app", path: app, sizeBytes: 10, command: ""))
-        #expect(state.overallFraction == 1 && state.lastWarning == nil)
-        #expect(ConversionCommand.appPath(fromDoneMessage: state.log.last?.text ?? "") == app)
+    @Test func finishedMacApp() {   // the app is where -o put it, named as the script names it: "Game: Test" makes "Game - Test.app"
+        var (_, state) = Self.fold(Self.macApp)
+        #expect(state.lastWarning == nil && !state.succeeded)
+        state.finish()
+        #expect(state.overallFraction == 1)
+        #expect(ConversionCommand.appOutput(folder: URL(fileURLWithPath: "/Users/player/Games/Test Game"), name: "Game: Test").path
+                == "/Users/player/Games/Test Game/Game - Test.app")
     }
 
     @Test func finishedMacRun() {
         let (_, state) = Self.fold(Self.macRun)
-        #expect(state.game?.platform == "mac" && state.game?.output == "")
-        #expect(state.result == BuildResult(ok: true, platform: "mac", path: "", sizeBytes: nil, command: "run the game"))
-        #expect(ConversionCommand.appPath(fromDoneMessage: state.log.last?.text ?? "") == nil)
+        #expect(state.log.count == 1 && state.lastWarning == nil)
     }
 }

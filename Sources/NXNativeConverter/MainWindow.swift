@@ -147,6 +147,7 @@ struct MainWindow: View {
                 .environment(model)
         }
         .sheet(item: $model.diffSheet) { ChangesSheet(item: $0) }
+        .sheet(item: $model.settingsSheet) { GameSettingsSheet(entry: $0).environment(model) }
         .task(id: model.isReady) { await model.refreshPortStatuses() }
         .task(id: LibraryFiles(model, generation: window.fileChecks)) { await window.checkLibraryFiles(LibraryFiles.urls(model)) }
         .task(id: PortPaths(model.ports, statuses: model.portStatuses, generation: window.fileChecks, shown: model.shownPortID)) {

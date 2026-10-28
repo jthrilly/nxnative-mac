@@ -116,8 +116,6 @@ struct JobStage: View {
                                   help: "nxnative has no profile for this game: the script surveys it and packs a provisional profile, which may not boot"))
             }
         }
-        if job.build.game?.provisional == true { chips.append(Chip("Provisional profile", symbol: "doc.badge.gearshape", tone: .info)) }
-        if job.build.game?.derived == true { chips.append(Chip("Derived profile", symbol: "arrow.triangle.branch", tone: .info)) }
         if let branch = job.portBranch {
             chips.append(Chip("nxnative: \(branch) worktree", symbol: "hammer", tone: .info,
                               help: "Built with the port's worktree: \(job.repository?.path ?? "")"))

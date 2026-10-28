@@ -1,4 +1,4 @@
-// ConversionCommand: the script's arguments (a Mac app or an Xcode project), the app path in its "done:" message, the Xcode project's paths, the folders it writes (logs, survey, provisional profile, work) and the game languages
+// ConversionCommand: the script's arguments (a Mac app at the path -o names, or an Xcode project), the Xcode project's paths, the folders it writes (logs, survey, provisional profile, work) and the game languages
 import Foundation
 import Testing
 @testable import ConverterCore
@@ -13,10 +13,10 @@ struct ConversionTests {
 
     @Test func argumentsWithEveryOption() {
         var o = ConversionOptions()
-        o.language = "ja"; o.package = "v327680"; o.appName = "My Game"; o.bundleID = "org.example.game"; o.allowDamaged = true; o.envFile = "/e/env.txt"
+        o.language = "ja"; o.package = "v327680"; o.appName = "My Game"; o.bundleID = "org.example.game"; o.allowDamaged = true
         o.signingIdentity = "Developer ID Application: A (TEAM)"
         #expect(ConversionCommand.arguments(script: script, folder: folder, keys: keys, options: o)
-                == base + ["-l", "ja", "-p", "v327680", "--app-name", "My Game", "--bundle-id", "org.example.game", "--allow-damaged", "--env-file", "/e/env.txt",
+                == base + ["-l", "ja", "-p", "v327680", "--app-name", "My Game", "--bundle-id", "org.example.game", "--allow-damaged",
                            "--mac-sign", "Developer ID Application: A (TEAM)"])
     }
 
@@ -40,12 +40,24 @@ struct ConversionTests {
         #expect(try JSONDecoder().decode(ConversionOptions.self, from: JSONEncoder().encode(o)).output == .xcodeProject)
     }
 
+    @Test func appOutput() {   // -o for a Mac app only; the name as the script's mac_app_name makes it
+        let app = ConversionCommand.appOutput(folder: folder, name: "Zelda: Breath of the Wild")
+        #expect(app.path == "/Games/Super Game/Zelda - Breath of the Wild.app")
+        #expect(ConversionCommand.arguments(script: script, folder: folder, keys: keys, options: ConversionOptions(), app: app) == base + ["-o", app.path])
+        var o = ConversionOptions(); o.output = .xcodeProject
+        #expect(!ConversionCommand.arguments(script: script, folder: folder, keys: keys, options: o, app: app).contains("-o"))
+        #expect(ConversionCommand.macAppName("A/B : C") == "A - B - C")
+        #expect(ConversionCommand.macAppName(" Game. ") == "Game")
+        #expect(ConversionCommand.macAppName(":") == "nxnative")
+    }
+
+    @Test func envFileIsGone() throws {   // a record saved with the old env file option still loads; the option is not passed on
+        let o = try JSONDecoder().decode(ConversionOptions.self, from: Data(#"{"language": "ja", "envFile": "/e/env.txt"}"#.utf8))
+        #expect(o.language == "ja")
+        #expect(!ConversionCommand.arguments(script: script, folder: folder, keys: keys, options: o).contains("--env-file"))
+    }
+
     @Test func xcodeProjectPaths() {
-        #expect(ConversionCommand.path(after: "ready", inMessage: "[16:40:12] ready: /Games/NxNative.xcworkspace") == "/Games/NxNative.xcworkspace")
-        #expect(ConversionCommand.path(after: "game project", inMessage: "[16:40:12] game project: /Games/A/0100ABCD00000000_build/xcode/DmIOS.xcodeproj")
-                == "/Games/A/0100ABCD00000000_build/xcode/DmIOS.xcodeproj")
-        #expect(ConversionCommand.path(after: "ready", inMessage: "[16:40:12] Xcode project: /Games/A/x.xcodeproj") == nil)
-        #expect(ConversionCommand.path(after: "ready", inMessage: "ready: relative/path") == nil)
         #expect(ConversionCommand.xcodeProject(folder: folder, titleID: "0100ABCD00000000").path == "/Games/Super Game/0100ABCD00000000_build/xcode/DmIOS.xcodeproj")
         #expect(ConversionCommand.xcodeWorkspace(folder: folder).path == "/Games/NxNative.xcworkspace")
     }
@@ -80,16 +92,6 @@ struct ConversionTests {
 
     @Test func scriptPath() {
         #expect(ConversionCommand.script(in: URL(fileURLWithPath: "/repo")).path == "/repo/scripts/build_ipa_from_nsp.py")
-    }
-
-    @Test func doneMessage() {
-        let msg = "[16:40:12] done: /Games/Super Game/Super Game.app (1.9 GB, its game files APFS clones of the extracted ones, which take no space of their own); "
-            + "open it from Finder. Its save is in ~/Library/Application Support/nxnative/0100ABCD00000000/, its log in ~/Library/Logs/nxnative/0100ABCD00000000.log"
-        #expect(ConversionCommand.appPath(fromDoneMessage: msg) == "/Games/Super Game/Super Game.app")
-        #expect(ConversionCommand.appPath(fromDoneMessage: "done: /G/W.app (0.4 GB); open it from Finder.") == "/G/W.app")
-        #expect(ConversionCommand.appPath(fromDoneMessage: "[16:40:12] done: /G/W.ipa (0.4 GB)") == nil)
-        #expect(ConversionCommand.appPath(fromDoneMessage: "[16:40:12] done: the game runs on the Mac with this command (its save in /x):") == nil)
-        #expect(ConversionCommand.appPath(fromDoneMessage: "[16:40:12] reusing the extracted v0") == nil)
     }
 
     @Test func logsFolder() {

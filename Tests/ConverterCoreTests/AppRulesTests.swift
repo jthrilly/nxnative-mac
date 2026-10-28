@@ -27,6 +27,12 @@ struct FailureTrackerTests {
         #expect(t.message(status: 1, lastError: "stderr line") == "the translator failed on 3 shaders")
     }
 
+    @Test func refusedArguments() {   // exit status 2: argparse wrote its usage and error to stderr, and no JSON events
+        let t = FailureTracker()
+        #expect(t.message(status: 2, lastError: "build_ipa_from_nsp.py: error: unrecognized arguments: --nope") == "The NSP script refused its arguments: build_ipa_from_nsp.py: error: unrecognized arguments: --nope")
+        #expect(t.message(status: 2, lastError: nil) == "The NSP script refused its arguments.")
+    }
+
     @Test func signalStatusNamesTheSignal() {
         let t = FailureTracker()
         let killed = t.message(status: 128 + SIGKILL, lastError: "stale")

@@ -1,5 +1,7 @@
 // The NSP script's command line for a Mac app (scripts/build_ipa_from_nsp.py --platform mac-app --progress json --ignore-settings: the Settings block at the script's top,
-// which configures Spyder runs, does not apply) or an iPhone and iPad Xcode project (--platform ios --prepare-xcode), and what its output names
+// which configures Spyder runs, does not apply) or an iPhone and iPad Xcode project (--platform ios --prepare-xcode), and where its output goes. nxnative's
+// front-end guidance (docs/frontends.md, Building) promises the JSON events and the exit status, not the wording of its messages, so the app names the Mac app's
+// path itself (-o) instead of reading it from a message
 import Foundation
 
 /// What a conversion makes: a Mac app, installed like any other, or an Xcode project for iPhone and iPad that Xcode signs and installs on a device
@@ -13,7 +15,6 @@ public struct ConversionOptions: Sendable, Equatable, Codable {
     public var appName: String = ""
     public var bundleID: String = ""
     public var allowDamaged: Bool = false
-    public var envFile: String = ""
     public var signingIdentity: String = ""
     public var surveyOnly: Bool = false
     public var output: ConversionOutput = .macApp
@@ -28,7 +29,6 @@ public struct ConversionOptions: Sendable, Equatable, Codable {
         appName = c.lenient(String.self, .appName) ?? ""
         bundleID = c.lenient(String.self, .bundleID) ?? ""
         allowDamaged = c.lenient(Bool.self, .allowDamaged) ?? false
-        envFile = c.lenient(String.self, .envFile) ?? ""
         signingIdentity = c.lenient(String.self, .signingIdentity) ?? ""
         surveyOnly = c.lenient(Bool.self, .surveyOnly) ?? false
         output = c.lenient(ConversionOutput.self, .output) ?? .macApp
@@ -71,15 +71,17 @@ public struct ScriptSupport: Sendable {
 
 public enum ConversionCommand {
     /// `teamID` is the Apple developer team an Xcode project is signed by (Settings); empty leaves it to the script (the team chosen in Xcode, else a placeholder)
-    public static func arguments(script: URL, folder: URL, keys: URL, options: ConversionOptions, ignoreSettings: Bool = true, teamID: String = "") -> [String] {
+    /// `app` is where a Mac app goes (appOutput); an Xcode project goes where --prepare-xcode puts it
+    public static func arguments(script: URL, folder: URL, keys: URL, options: ConversionOptions, ignoreSettings: Bool = true, teamID: String = "",
+                                 app: URL? = nil) -> [String] {
         let platform = options.output == .xcodeProject ? ["--platform", "ios", "--prepare-xcode"] : ["--platform", "mac-app"]
         var args = ["-u", script.path, folder.path, "-k", keys.path] + platform + ["--progress", "json"]
         if ignoreSettings { args.append("--ignore-settings") }
+        if options.output == .macApp, let app { args += ["-o", app.path] }
         for (flag, value) in [("-l", options.language), ("-p", options.package), ("--app-name", options.appName), ("--bundle-id", options.bundleID)] where !value.isEmpty {
             args += [flag, value]
         }
         if options.allowDamaged { args.append("--allow-damaged") }
-        if !options.envFile.isEmpty { args += ["--env-file", options.envFile] }
         switch options.output {
         case .macApp: if !options.signingIdentity.isEmpty { args += ["--mac-sign", options.signingIdentity] }
         case .xcodeProject: if !teamID.isEmpty { args += ["--team-id", teamID] }
@@ -90,20 +92,16 @@ public enum ConversionCommand {
 
     public static func script(in repository: URL) -> URL { repository.appendingPathComponent("scripts/build_ipa_from_nsp.py") }
 
-    /// The script's last message for a Mac app: "[HH:MM:SS] done: <path>.app (1.9 GB…); open it from Finder. …"
-    public static func appPath(fromDoneMessage message: String) -> String? {
-        guard let done = message.range(of: "done: ") else { return nil }
-        let rest = message[done.upperBound...]
-        guard let end = rest.range(of: ".app (") else { return nil }
-        let path = String(rest[..<end.lowerBound]) + ".app"
-        return path.hasPrefix("/") ? path : nil
+    /// Where a Mac app is made: <name>.app in the game folder, named as the script names it when -o is not given (mac_app_name: the characters Finder shows
+    /// otherwise, ':' and '/', become ' - ')
+    public static func appOutput(folder: URL, name: String) -> URL {
+        folder.appendingPathComponent(macAppName(name) + ".app", isDirectory: true)
     }
 
-    /// The path after `label` in the script's messages for an Xcode project: "[HH:MM:SS] ready: <workspace>" and "[HH:MM:SS] game project: <project>"
-    public static func path(after label: String, inMessage message: String) -> String? {
-        guard let r = message.range(of: label + ": ") else { return nil }
-        let path = String(message[r.upperBound...]).trimmingCharacters(in: .whitespaces)
-        return path.hasPrefix("/") ? path : nil
+    static func macAppName(_ name: String) -> String {
+        let separated = name.replacingOccurrences(of: #"\s*[:/]\s*"#, with: " - ", options: .regularExpression)
+        let trimmed = separated.trimmingCharacters(in: CharacterSet(charactersIn: " .-"))
+        return trimmed.isEmpty ? "nxnative" : trimmed
     }
 
     /// The game's Xcode project, which --prepare-xcode generates in its build folder

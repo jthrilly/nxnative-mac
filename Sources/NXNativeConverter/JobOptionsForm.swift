@@ -30,12 +30,6 @@ struct JobOptionsForm: View {
                     TextField("App name", text: $job.options.appName, prompt: Text(job.name))
                     TextField("Bundle ID", text: $job.options.bundleID, prompt: Text("Automatic"))
                     Toggle("Allow damaged game files", isOn: $job.options.allowDamaged)
-                    LabeledContent("Env file") {
-                        HStack {
-                            TextField("Env file", text: $job.options.envFile, prompt: Text("None")).labelsHidden()
-                            Button("Choose…") { chooseEnvFile() }
-                        }
-                    }
                 }
             } header: {
                 Text("Options")
@@ -45,7 +39,8 @@ struct JobOptionsForm: View {
                         Text("The project goes in the game folder and is added to NxNative.xcworkspace beside it. Its signing team is "
                              + "Settings › Conversion › Team ID.")
                     }
-                    Text("Options can be changed until the conversion starts.")
+                    Text("Options can be changed until the conversion starts. The game's settings (frame rate, render scale…) are chosen in the Library, "
+                         + "under Game Settings, once the app is made.")
                 }
                 .foregroundStyle(.secondary)
             }
@@ -110,14 +105,5 @@ struct JobOptionsForm: View {
         if let version = file.version { parts.append("v\(version)") }
         if file.compressed { parts.append("compressed") }
         return parts.joined(separator: " · ")
-    }
-
-    private func chooseEnvFile() {
-        let panel = NSOpenPanel()
-        panel.canChooseFiles = true
-        panel.canChooseDirectories = false
-        panel.allowsMultipleSelection = false
-        panel.directoryURL = job.folder
-        if panel.runModal() == .OK, let url = panel.url { job.options.envFile = url.path }
     }
 }

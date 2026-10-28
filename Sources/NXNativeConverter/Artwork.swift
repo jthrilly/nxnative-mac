@@ -5,7 +5,7 @@ import ConverterCore
 import ImageIO
 import SwiftUI
 
-/// Where a game's art is: the icon the script extracted (GameInfo.icon), the newest extracted icon of a game folder, or an installed app's icon
+/// Where a game's art is: an icon file, the newest extracted icon of a game folder, or an installed app's icon
 enum ArtworkSource: Hashable, Sendable {
     case icon(String)
     case gameFolder(URL, titleID: String)

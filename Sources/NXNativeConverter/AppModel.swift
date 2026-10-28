@@ -79,6 +79,7 @@ struct LibraryEntry: Identifiable {
     var portOperations: [String: String] = [:]                // title ID → the git operation running on its worktree
     var portSheet: PortSheetRequest?
     var diffSheet: DiffSheetItem?
+    var settingsSheet: LibraryEntry?   // Game Settings of a game app
     var portToRemove: PortRecord?                            // Remove Port… asks first
     var terminalSessions: Set<String> = []                   // title IDs of the ports with an agent session open in Terminal
     @ObservationIgnored var portRunTask: Task<Void, Never>?

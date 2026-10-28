@@ -5,7 +5,16 @@ its own with nxnative's NSP script, installs it in Applications and keeps a reco
 the conversion needs, keeps your nxnative checkout up to date, and can hand a game nxnative cannot convert yet to Claude Code or Codex, which attempt the port
 in a worktree of nxnative.
 
-The app is separate from nxnative: it runs the NSP script of whichever nxnative checkout you point it at, and nxnative knows nothing about it.
+The app is separate from nxnative: it runs the NSP script of whichever nxnative checkout you point it at, and nxnative knows nothing about it. It is a front end in the
+sense of nxnative's [Front ends](https://github.com/seedds/nxnative/blob/main/docs/frontends.md) guide, and builds only on what that guide promises:
+
+- **Building:** the NSP script's `--progress json` events and its exit status. The app names where the Mac app goes (`-o`) and never reads the wording of a
+  message.
+- **Settings:** the list a built app carries (`Contents/Resources/dm/launcher.json`, schema 1).
+- **Starting a game:** the player's saved choices in the game app's own preferences, and `DM_LAUNCHER=0` when the app draws the settings itself.
+- **While a game runs:** its log is for people. The app opens it, and doesn't read it.
+
+When the app needs more from nxnative, that piece is an issue or a small PR there.
 
 ## Requirements
 
@@ -76,23 +85,25 @@ What the app needs from the script:
 Each game runs the checkout's script, one game at a time:
 
 ```
-<python> -u scripts/build_ipa_from_nsp.py <folder> -k <prod.keys> --platform mac-app --progress json [--ignore-settings] [-l <language>] [-p <version>] [--app-name …] [--bundle-id …] [--allow-damaged] [--env-file …] [--mac-sign …] [--survey-only]
+<python> -u scripts/build_ipa_from_nsp.py <folder> -k <prod.keys> --platform mac-app --progress json [--ignore-settings] -o <folder>/<name>.app [-l <language>] [-p <version>] [--app-name …] [--bundle-id …] [--allow-damaged] [--mac-sign …] [--survey-only]
 ```
 
 How it runs:
 
 - **Environment:** the login shell's environment plus the script's tool folders. An app opened from Finder gets no shell `PATH`.
 - **Process group:** the script runs in one of its own. Cancel sends the group SIGINT, then SIGTERM and SIGKILL.
-- **Progress:** the script's JSON events drive the stage list and the log.
+- **Progress:** the script's JSON events drive the stage list and the log. An event the guide doesn't list is ignored.
+- **Result:** the exit status. 0 is a finished build, and the app is at the `-o` path, named after the App name option or the game (`:` and `/` become ` - `,
+  as the script names it). 1 is an error, and the newest `[RED] ` message of the stage that failed says which. 2 is an argument the script refused, and the
+  app shows what it wrote on stderr. 130 is a cancel.
 
 The pages:
 
 - **Convert**: the queue of game folders. A folder is scanned the way the script scans it (title ID, versions, DLC), then matched with nxnative's profiles: a
-  tested version, an untested version, or no profile. Each game has its options (what to make, language, version, app name, bundle ID, damaged files, env
-  file), its stages with counts and an estimate of the time left, and the log.
+  tested version, an untested version, or no profile. Each game has its options (what to make, language, version, app name, bundle ID, damaged files), its stages with counts and an estimate of the time left, and the log.
 - **Library**: the nxnative game apps in the install folder, `/Applications` and `~/Applications`, and the games prepared as Xcode projects. Each shows the
-  nxnative commit that built it and how far the checkout has moved since, and can be rebuilt with the current checkout. The Library also keeps the history of
-  every conversion.
+  nxnative commit that built it and how far the checkout has moved since, and can be rebuilt with the current checkout. A game app's settings are under
+  **Game Settings…** (see [Game settings](#game-settings)). The Library also keeps the history of every conversion.
 - **Ports**: the games handed to a coding agent (see [Ports](#ports)).
 - **nxnative**: the checkout (see [Choosing the nxnative checkout](#choosing-the-nxnative-checkout)).
 - **Setup**: what a conversion needs, each item with its fix. Install Missing runs the fixes that need neither a password nor administrator rights. The items:
@@ -109,6 +120,26 @@ chooses Move, Copy or Don't install.
   any other app of that name stops the install and is left alone.
 - **Saves and logs:** they stay where nxnative's launcher keeps them, `~/Library/Application Support/nxnative/<title ID>/` and
   `~/Library/Logs/nxnative/<title ID>.log`.
+
+### Game settings
+
+**Game Settings…** (in the Library's inspector, a game's context menu, or Library › Game Settings…, ⌥⌘,) shows the settings a game app carries. They are the same
+settings as in the game's own window, with the same tested defaults:
+
+- **Layout:** the most used settings first, and the rest under **Advanced settings**, in the list's sections.
+- **Sub-settings:** a sub-setting shows only while the setting it depends on has the value it needs.
+- **Render scale:** shows the picture's size in pixels for the chosen console mode, when the game's profile has it.
+
+An app without a settings list, or one this version can't read (a newer schema or a kind of setting it doesn't know), shows why, and still plays.
+
+- **Save** keeps the choices in the game app's own preferences (`launcher.<VAR>` in its bundle ID's domain). Only a choice that differs from the tested default
+  is kept, so a setting left at its default follows the defaults of a later build. The game's own settings window and a start from Finder or the Dock use the
+  same choices. **Reset to Tested Defaults**, then Save, removes them.
+- **Play Once** starts the game with the values shown, for that start only. They go in its launch environment and nothing is kept.
+- **Starting from the sheet** skips the game's own window (`DM_LAUNCHER=0`); the saved choices still apply. Play in the Library opens the app as Finder does,
+  with its window.
+- **env.txt:** a setting that an `env.txt` sets is greyed out, since the file wins. That covers the game's own, in
+  `~/Library/Application Support/nxnative/<title ID>/`, and the app's.
 
 ### iPhone and iPad: an Xcode project
 
@@ -163,6 +194,7 @@ What the agent reads (logs, disassembly, the survey, nxnative's code) is sent to
 | What | Where |
 |---|---|
 | Settings | the user defaults of `org.nxnative.converter` |
+| A game's settings | the game app's preferences domain (its bundle ID, `org.nxnative.<title ID>` by default), shared with its own settings window |
 | Conversion records | `~/Library/Application Support/nxnative Converter/library.json` |
 | Ports | `ports.json`, and `ports/<title ID>/` beside it (transcripts, prompts, the agent's settings) |
 
@@ -209,4 +241,4 @@ python3 -m unittest discover -s scripts -p 'test_*.py'
 ```
 
 CI (`.github/workflows/tests.yml`) runs all three on GitHub's `xcode-27` runner image, with `NXNATIVE_REPO` set to a checkout of nxnative's `main`. A weekly run
-catches an nxnative change that the app needs to follow.
+catches an nxnative change that the app needs to follow. Among the checks: the app reads every field and kind in nxnative's `docs/launcher.schema.json`.

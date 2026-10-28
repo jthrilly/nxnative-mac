@@ -1,16 +1,17 @@
 // What can be done in the Library, in one place: a game app's actions (its tile's context menu, the toolbar, the inspector and the Library menu) and
 // the actions on selected history records (the table's context menu and the Library menu). A game prepared as an Xcode project plays by opening its
-// workspace in Xcode, and has no log or save folder on this Mac
+// workspace in Xcode, and has no log, save folder or game settings on this Mac
 import AppKit
 import ConverterCore
 import SwiftUI
 
 enum LibraryAction: Hashable {
-    case play, showInFinder, rebuild, openLog, openSaveFolder
+    case play, gameSettings, showInFinder, rebuild, openLog, openSaveFolder
 
     var title: String {
         switch self {
         case .play: "Play"
+        case .gameSettings: "Game Settings…"
         case .showInFinder: "Show in Finder"
         case .rebuild: "Rebuild with Current nxnative"
         case .openLog: "Open Log"
@@ -21,6 +22,7 @@ enum LibraryAction: Hashable {
     var symbol: String {
         switch self {
         case .play: "play.fill"
+        case .gameSettings: "slider.horizontal.3"
         case .showInFinder: "folder"
         case .rebuild: "arrow.triangle.2.circlepath"
         case .openLog: "doc.plaintext"
@@ -44,7 +46,7 @@ enum LibraryAction: Hashable {
     func applies(to entry: LibraryEntry) -> Bool {
         switch self {
         case .rebuild: entry.record != nil
-        case .openLog, .openSaveFolder: !entry.isXcodeProject
+        case .openLog, .openSaveFolder, .gameSettings: !entry.isXcodeProject
         case .play, .showInFinder: true
         }
     }
@@ -53,7 +55,7 @@ enum LibraryAction: Hashable {
     func isEnabled(for entry: LibraryEntry, files: Set<URL>) -> Bool {
         switch self {
         case .play: entry.xcodeWorkspace.map { files.contains($0) } ?? true
-        case .showInFinder: true
+        case .showInFinder, .gameSettings: true
         case .rebuild: entry.record.map { files.contains($0.folderURL) } ?? false
         case .openLog: files.contains(entry.logFile)
         case .openSaveFolder: files.contains(entry.saveFolder)
@@ -66,6 +68,7 @@ enum LibraryAction: Hashable {
         case .play:
             guard let workspace = entry.xcodeWorkspace else { return "Open \(entry.app.name)" }
             return enabled ? "Open \(workspace.lastPathComponent) in Xcode, then choose the game's scheme and your iPhone or iPad and Run" : "The workspace is not there: \(workspace.path)"
+        case .gameSettings: return "Choose the settings \(entry.app.name) starts with, or start it once with others"
         case .showInFinder: return entry.isXcodeProject ? "Show the Xcode project in Finder" : "Show the app in Finder"
         case .rebuild:
             guard enabled else { return "The game folder is not there" }
@@ -78,6 +81,7 @@ enum LibraryAction: Hashable {
     @MainActor func perform(on entry: LibraryEntry, in model: AppModel) {
         switch self {
         case .play: NSWorkspace.shared.open(entry.xcodeWorkspace ?? entry.app.url)
+        case .gameSettings: model.settingsSheet = entry
         case .showInFinder: NSWorkspace.shared.activateFileViewerSelecting([entry.app.url])
         case .rebuild: if let record = entry.record { model.rebuild(record) }
         case .openLog: NSWorkspace.shared.open(entry.logFile)
@@ -86,7 +90,7 @@ enum LibraryAction: Hashable {
     }
 
     /// A game app's menu: its tile's context menu
-    fileprivate static let menu: [[LibraryAction]] = [[.play, .showInFinder, .rebuild], [.openLog, .openSaveFolder]]
+    fileprivate static let menu: [[LibraryAction]] = [[.play, .gameSettings, .showInFinder, .rebuild], [.openLog, .openSaveFolder]]
 }
 
 /// What the history actions apply to: the newest selected record of each game folder that is still there, and of those the failed ones with a

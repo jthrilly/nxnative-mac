@@ -81,15 +81,13 @@ struct BuildStateTests {
         #expect(s.log.last?.id == 5_009)
     }
 
-    @Test func gameAndResult() {
+    @Test func finishedByExitStatus() {   // the exit status, not an event, says the build finished
         var s = BuildState()
-        let g = GameInfo(titleID: "0100", profile: "0100", name: "G", version: "1.0", package: "v0", provisional: false, derived: false, platform: "mac-app", output: "/G.app", icon: "")
-        s.apply(.game(g), at: t0)
         s.apply(.stage(k: 1, n: 3, name: "pack", step: ""), at: t0)
-        s.apply(.result(BuildResult(ok: true, platform: "mac-app", path: "/G.app", sizeBytes: 10, command: "")), at: t0)
         s.apply(.unknown("later"), at: t0)
-        #expect(s.game == g)
-        #expect(s.result?.path == "/G.app")
+        #expect(s.overallFraction < 1 && !s.succeeded)
+        s.finish()
+        #expect(s.succeeded)
         #expect(s.overallFraction == 1)
         #expect(s.stages[0].status == .succeeded)
     }

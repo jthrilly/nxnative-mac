@@ -1,5 +1,7 @@
-// One conversion: checks, build_ipa_from_nsp.py --platform mac-app --progress json in its own process group (output folded into the job's BuildState in
-// batches), then the install into the Applications folder, the library record and the notification. An Xcode project run (--platform ios --prepare-xcode)
+// One conversion: checks, build_ipa_from_nsp.py --platform mac-app --progress json -o <app> in its own process group (output folded into the job's BuildState in
+// batches), then the install into the Applications folder, the library record and the notification. As nxnative's front-end guidance has it, the run is judged
+// by its exit status (0 finished, 1 an error its last [RED] message names, 2 arguments the script refused, which it says on stderr, 130 interrupted), and the
+// app is where -o put it: no message's wording is read. An Xcode project run (--platform ios --prepare-xcode)
 // installs nothing: it ends at the project, which the Library lists and opens in Xcode. A survey-only run ends at the survey (nothing is
 // installed), unless the script found the game to be a known build under another title ID and made the app instead; a job from a port runs the port
 // worktree's script. Every run that started is recorded
@@ -37,7 +39,9 @@ extension AppModel {
         let ignoreSettings = support?.ignoreSettings ?? true
         if !ignoreSettings { job.note("This nxnative's script has no --ignore-settings: the Settings block at its top applies to this build too.") }
         let teamID = settings.teamID.trimmingCharacters(in: .whitespaces)
-        let arguments = ConversionCommand.arguments(script: script, folder: job.folder, keys: keys, options: options, ignoreSettings: ignoreSettings, teamID: teamID)
+        let appOutput = job.appOutput
+        let arguments = ConversionCommand.arguments(script: script, folder: job.folder, keys: keys, options: options, ignoreSettings: ignoreSettings, teamID: teamID,
+                                                    app: appOutput)
         var variables = env.variables
         variables["PYTHONUNBUFFERED"] = "1"
         job.note("$ " + ([python] + arguments).map(Shell.quoteIfNeeded).joined(separator: " "))
@@ -57,16 +61,20 @@ extension AppModel {
 
         if job.cancelRequested || status == 130 { return conclude(job, .cancelled, nil) }
         guard status == 0 else { return conclude(job, .failed, job.failureMessage(status: status)) }
-        if options.surveyOnly, let game = job.build.game, !game.provisional {   // a known build (the script's same_build): it packed the app, there is no survey
+        job.buildFinished()
+        if options.surveyOnly {
+            let survey = job.titleID.map { ConversionCommand.surveyFile(folder: job.folder, titleID: $0) }
+            if let survey, fm.fileExists(atPath: survey.path) {
+                job.surveyWritten = survey
+                job.note("Survey written: \(survey.path)")
+                return conclude(job, .succeeded, nil)
+            }
+            // A known build under another title ID (the script's same_build) has no survey: the script made the app instead
+            guard options.output == .macApp, fm.fileExists(atPath: appOutput.path) else {
+                return conclude(job, .failed, "The survey finished, but \(survey?.path ?? "its survey.md") was not found.")
+            }
             job.options.surveyOnly = false
-            job.note("No survey: \(job.name) is a known build of game profile \(game.profile), and the app was made from it.")
-        } else if options.surveyOnly {
-            guard let titleID = job.titleID else { return conclude(job, .failed, "The survey finished, but the game's title ID is unknown.") }
-            let survey = ConversionCommand.surveyFile(folder: job.folder, titleID: titleID)
-            guard fm.fileExists(atPath: survey.path) else { return conclude(job, .failed, "The survey finished, but \(survey.path) was not found.") }
-            job.surveyWritten = survey
-            job.note("Survey written: \(survey.path)")
-            return conclude(job, .succeeded, nil)
+            job.note("No survey: \(job.name) is a build nxnative knows, and the app was made from its profile.")
         }
         if options.output == .xcodeProject {
             guard let prepared = preparedProject(of: job) else {
@@ -77,39 +85,19 @@ extension AppModel {
             job.note("Workspace: \(prepared.workspace.path) (Open in Xcode, choose the game's scheme and your iPhone or iPad, then Run)")
             return conclude(job, .succeeded, nil)
         }
-        guard let app = builtApp(of: job) else {
-            return conclude(job, .failed, "The conversion finished, but the app it made was not found in \(job.folder.path).")
+        guard fm.fileExists(atPath: appOutput.path) else {
+            return conclude(job, .failed, "The conversion finished, but the app it was to make at \(appOutput.path) is not there.")
         }
-        job.builtApp = app
-        await install(job, app: app)
+        job.builtApp = appOutput
+        await install(job, app: appOutput)
     }
 
-    private func builtApp(of job: ConversionJob) -> URL? {
-        let fm = FileManager.default
-        func existing(_ path: String?) -> URL? { path.flatMap { !$0.isEmpty && fm.fileExists(atPath: $0) ? URL(fileURLWithPath: $0) : nil } }
-        if let result = job.build.result, result.ok, let url = existing(result.path) { return url }
-        if let url = existing(job.build.game?.output) { return url }
-        for line in job.build.log.suffix(100).reversed() where line.kind == .info {
-            guard let r = line.text.range(of: "done: ") else { continue }
-            if let url = existing(ConversionCommand.appPath(fromDoneMessage: String(line.text[r.lowerBound...])) ?? ConversionCommand.appPath(fromDoneMessage: line.text)) {
-                return url
-            }
-        }
-        return existing(job.folder.appendingPathComponent(job.name + ".app").path)
-    }
-
-    /// The project and workspace the script's "game project:" and "ready:" messages name, else where it makes them
+    /// Where --prepare-xcode makes the game's project and the workspace it adds it to
     private func preparedProject(of job: ConversionJob) -> (project: URL, workspace: URL)? {
         let fm = FileManager.default
-        func named(_ label: String) -> URL? {
-            for line in job.build.log.suffix(100).reversed() where line.kind == .info {
-                if let path = ConversionCommand.path(after: label, inMessage: line.text) { return URL(fileURLWithPath: path) }
-            }
-            return nil
-        }
         guard let titleID = job.titleID else { return nil }
-        let project = named("game project") ?? ConversionCommand.xcodeProject(folder: job.folder, titleID: titleID)
-        let workspace = named("ready") ?? ConversionCommand.xcodeWorkspace(folder: job.folder)
+        let project = ConversionCommand.xcodeProject(folder: job.folder, titleID: titleID)
+        let workspace = ConversionCommand.xcodeWorkspace(folder: job.folder)
         guard fm.fileExists(atPath: project.path), fm.fileExists(atPath: workspace.path) else { return nil }
         return (project, workspace)
     }
@@ -151,18 +139,18 @@ extension AppModel {
         if let message, state != .succeeded { job.note(message) }
         if state == .cancelled { job.note("Cancelled.") }
         job.finish(state, message: message)
-        let game = job.build.game
         func nonEmpty(_ s: String?) -> String? { s.flatMap { $0.isEmpty ? nil : $0 } }
-        let profile: String?
+        let profile: String?, version: String?, derived: Bool
         switch job.match {
-        case .tested(let p, _), .untestedVersion(let p, _, _): profile = p.id
-        case .noProfile: profile = nil
+        case .tested(let p, let display): profile = p.id; version = display; derived = false
+        case .untestedVersion(let p, _, _): profile = p.id; version = nil; derived = true
+        case .noProfile: profile = nil; version = nil; derived = false
         }
         let status: ConversionStatus = state == .succeeded ? .succeeded : state == .cancelled ? .cancelled : .failed
         appendRecord(ConversionRecord(
-            id: UUID(), folder: job.folder.path, titleID: job.titleID, gameName: job.name, gameVersion: nonEmpty(game?.version),
-            package: nonEmpty(game?.package) ?? nonEmpty(job.options.package), profile: nonEmpty(game?.profile) ?? profile,
-            provisional: game?.provisional ?? (job.match == .noProfile), derived: game?.derived ?? false,
+            id: UUID(), folder: job.folder.path, titleID: job.titleID, gameName: job.name, gameVersion: version,
+            package: nonEmpty(job.options.package), profile: profile,
+            provisional: job.match == .noProfile, derived: derived,
             builtAppPath: job.builtApp?.path, installedAppPath: job.installedApp?.path, xcodeProjectPath: job.xcodeProject?.path,
             xcodeWorkspacePath: job.xcodeWorkspace?.path, startedAt: job.startedAt ?? Date(), finishedAt: job.finishedAt,
             status: status, message: message, nxnative: job.nxnative, options: job.options))

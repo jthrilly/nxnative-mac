@@ -1,4 +1,4 @@
-// What the conversion window shows of a build: its stages, the log, the game and the result, folded from the script's events (BuildEvent).
+// What the conversion window shows of a build: its stages and the log, folded from the script's events (BuildEvent). Whether it finished is the exit status.
 // PROG.plan() can run twice (NSZ decompression plans 1 stage, then main plans the rest), so k restarts: stages are identified by their arrival order
 import Foundation
 
@@ -22,9 +22,8 @@ public struct BuildState: Sendable, Equatable {
     public private(set) var stages: [StageRecord] = []
     public private(set) var plannedStages = 0
     public private(set) var log: [LogLine] = []
-    public private(set) var game: GameInfo?
-    public private(set) var result: BuildResult?
     private(set) var lastWarning: String?
+    public private(set) var succeeded = false   // the script exited 0
     private var planStart = 0   // index in stages of the latest plan's first stage
     private var nextLogID = 0
 
@@ -36,7 +35,7 @@ public struct BuildState: Sendable, Equatable {
     public var currentPlan: ArraySlice<StageRecord> { stages[min(planStart, stages.count)...] }
 
     public var overallFraction: Double {
-        if result?.ok == true { return 1 }
+        if succeeded { return 1 }
         let plan = currentPlan
         guard plannedStages > 0, !plan.isEmpty else { return 0 }
         let finished = plan.filter { $0.status != .running }.count
@@ -64,12 +63,14 @@ public struct BuildState: Sendable, Equatable {
             let warning = Self.warningText(message)
             if let warning { lastWarning = warning }
             append(message, kind: warning == nil ? .info : .warning, at: date)
-        case let .game(info): game = info
-        case let .result(r):
-            result = r
-            if r.ok { closeRunningStage() }
         case .unknown: break
         }
+    }
+
+    /// The script exited 0: the build is finished, whatever its last stage said
+    public mutating func finish() {
+        closeRunningStage()
+        succeeded = true
     }
 
     public mutating func appendStderr(_ line: String, at date: Date) { append(line, kind: .error, at: date) }
