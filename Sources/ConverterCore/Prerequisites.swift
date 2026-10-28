@@ -201,10 +201,6 @@ public struct PrerequisiteChecker: Sendable {
                     return result(.missing, "\(repository.path)\nIts NSP script is older than this app: it has no \(support.missing.joined(separator: " or ")). "
                                   + "Update nxnative, or choose a newer checkout.", [choose])
                 }
-                if !support.ignoreSettings {
-                    return result(.warning, "\(repository.path)\nIts NSP script has no --ignore-settings, so the Settings block at the top of the script applies to "
-                                  + "the app's builds too. A newer nxnative has it.")
-                }
                 return result(.ok, repository.path)
             }
             let exists = fm.fileExists(atPath: repository.path)

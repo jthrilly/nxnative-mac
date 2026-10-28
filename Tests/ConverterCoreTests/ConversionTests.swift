@@ -5,7 +5,7 @@ import Testing
 
 struct ConversionTests {
     let script = URL(fileURLWithPath: "/repo/scripts/build_ipa_from_nsp.py"), folder = URL(fileURLWithPath: "/Games/Super Game"), keys = URL(fileURLWithPath: "/k/prod.keys")
-    let base = ["-u", "/repo/scripts/build_ipa_from_nsp.py", "/Games/Super Game", "-k", "/k/prod.keys", "--platform", "mac-app", "--progress", "json", "--ignore-settings"]
+    let base = ["-u", "/repo/scripts/build_ipa_from_nsp.py", "/Games/Super Game", "-k", "/k/prod.keys", "--platform", "mac-app", "--progress", "json"]
 
     @Test func argumentsWithoutOptions() {
         #expect(ConversionCommand.arguments(script: script, folder: folder, keys: keys, options: ConversionOptions()) == base)
@@ -24,7 +24,7 @@ struct ConversionTests {
         var o = ConversionOptions()
         o.output = .xcodeProject; o.bundleID = "org.example.game"; o.signingIdentity = "Developer ID Application: A (TEAM)"   // a Mac app's identity does not apply
         let xcode = ["-u", "/repo/scripts/build_ipa_from_nsp.py", "/Games/Super Game", "-k", "/k/prod.keys", "--platform", "ios", "--prepare-xcode", "--progress", "json",
-                     "--ignore-settings", "--bundle-id", "org.example.game"]
+                     "--bundle-id", "org.example.game"]
         #expect(ConversionCommand.arguments(script: script, folder: folder, keys: keys, options: o) == xcode)
         #expect(ConversionCommand.arguments(script: script, folder: folder, keys: keys, options: o, teamID: "A1B2C3D4E5") == xcode + ["--team-id", "A1B2C3D4E5"])
         o.output = .macApp   // a team ID is for Xcode projects only
@@ -62,17 +62,10 @@ struct ConversionTests {
         #expect(ConversionCommand.xcodeWorkspace(folder: folder).path == "/Games/NxNative.xcworkspace")
     }
 
-    @Test func withoutIgnoreSettings() {   // an older nxnative's script, which has no --ignore-settings
-        #expect(ConversionCommand.arguments(script: script, folder: folder, keys: keys, options: ConversionOptions(), ignoreSettings: false) == base.dropLast())
-    }
-
     @Test func scriptSupport() {
-        func flags(_ s: ScriptSupport) -> [Bool] { [s.macApp, s.jsonProgress, s.ignoreSettings] }
-        #expect(flags(ScriptSupport(script: scriptOptionLines)) == [true, true, true])
+        func flags(_ s: ScriptSupport) -> [Bool] { [s.macApp, s.jsonProgress] }
+        #expect(flags(ScriptSupport(script: scriptOptionLines)) == [true, true])
         #expect(ScriptSupport(script: scriptOptionLines).missing == [])
-        let older = scriptOptionLines.split(separator: "\n").filter { !$0.contains("--ignore-settings") }.joined(separator: "\n")
-        #expect(flags(ScriptSupport(script: older)) == [true, true, false])
-        #expect(ScriptSupport(script: older).missing == [])
         let oldest = "ap.add_argument('--platform', choices=('ios', 'mac'), help='')\nap.add_argument('--progress', choices=('auto', 'off'))\n"
         #expect(ScriptSupport(script: oldest).missing == ["--platform mac-app", "--progress json"])
         #expect(ScriptSupport(script: scriptOptionLines).missing(for: .xcodeProject) == [])
@@ -80,7 +73,7 @@ struct ConversionTests {
         #expect(ScriptSupport(script: noXcode).missing(for: .macApp) == [])
         #expect(ScriptSupport(script: noXcode).missing(for: .xcodeProject) == ["--prepare-xcode"])
         // only the parser's lines count: an option named in a comment or a message is not declared
-        #expect(flags(ScriptSupport(script: "# --ignore-settings: 'json' 'mac-app'\nsay('--progress json')\n")) == [false, false, false])
+        #expect(flags(ScriptSupport(script: "# --platform: 'json' 'mac-app'\nsay('--progress json')\n")) == [false, false])
         #expect(ScriptSupport(repository: URL(fileURLWithPath: "/nonexistent")) == nil)
     }
 

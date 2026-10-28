@@ -36,12 +36,9 @@ extension AppModel {
 
         var options = job.options
         if options.signingIdentity.isEmpty { options.signingIdentity = settings.signingIdentity }
-        let ignoreSettings = support?.ignoreSettings ?? true
-        if !ignoreSettings { job.note("This nxnative's script has no --ignore-settings: the Settings block at its top applies to this build too.") }
         let teamID = settings.teamID.trimmingCharacters(in: .whitespaces)
         let appOutput = job.appOutput
-        let arguments = ConversionCommand.arguments(script: script, folder: job.folder, keys: keys, options: options, ignoreSettings: ignoreSettings, teamID: teamID,
-                                                    app: appOutput)
+        let arguments = ConversionCommand.arguments(script: script, folder: job.folder, keys: keys, options: options, teamID: teamID, app: appOutput)
         var variables = env.variables
         variables["PYTHONUNBUFFERED"] = "1"
         job.note("$ " + ([python] + arguments).map(Shell.quoteIfNeeded).joined(separator: " "))

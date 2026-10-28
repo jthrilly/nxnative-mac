@@ -1,5 +1,5 @@
-// The NSP script's command line for a Mac app (scripts/build_ipa_from_nsp.py --platform mac-app --progress json --ignore-settings: the Settings block at the script's top,
-// which configures Spyder runs, does not apply) or an iPhone and iPad Xcode project (--platform ios --prepare-xcode), and where its output goes. nxnative's
+// The NSP script's command line for a Mac app (scripts/build_ipa_from_nsp.py --platform mac-app --progress json; its arguments win over the Settings block at the
+// script's top) or an iPhone and iPad Xcode project (--platform ios --prepare-xcode), and where its output goes. nxnative's
 // front-end guidance (docs/frontends.md, Building) promises the JSON events and the exit status, not the wording of its messages, so the app names the Mac app's
 // path itself (-o) instead of reading it from a message
 import Foundation
@@ -35,12 +35,11 @@ public struct ConversionOptions: Sendable, Equatable, Codable {
     }
 }
 
-/// What a checkout's NSP script supports of the options the app runs it with, read from its argument parser's lines. An older nxnative has no
-/// --ignore-settings, and conversions go without it; one older still has no Mac app or JSON progress, which a conversion cannot do without
+/// What a checkout's NSP script supports of the options the app runs it with, read from its argument parser's lines. An older nxnative has no Mac app or
+/// JSON progress, which a conversion cannot do without, or no --prepare-xcode, which an Xcode project needs
 public struct ScriptSupport: Sendable {
     public var macApp: Bool
     public var jsonProgress: Bool
-    public var ignoreSettings: Bool
     public var xcodeProject: Bool
 
     public init(script: String) {
@@ -50,7 +49,6 @@ public struct ScriptSupport: Sendable {
         }
         macApp = has("--platform", choice: "mac-app")
         jsonProgress = has("--progress", choice: "json")
-        ignoreSettings = has("--ignore-settings")
         xcodeProject = has("--prepare-xcode")
     }
 
@@ -72,11 +70,9 @@ public struct ScriptSupport: Sendable {
 public enum ConversionCommand {
     /// `teamID` is the Apple developer team an Xcode project is signed by (Settings); empty leaves it to the script (the team chosen in Xcode, else a placeholder)
     /// `app` is where a Mac app goes (appOutput); an Xcode project goes where --prepare-xcode puts it
-    public static func arguments(script: URL, folder: URL, keys: URL, options: ConversionOptions, ignoreSettings: Bool = true, teamID: String = "",
-                                 app: URL? = nil) -> [String] {
+    public static func arguments(script: URL, folder: URL, keys: URL, options: ConversionOptions, teamID: String = "", app: URL? = nil) -> [String] {
         let platform = options.output == .xcodeProject ? ["--platform", "ios", "--prepare-xcode"] : ["--platform", "mac-app"]
         var args = ["-u", script.path, folder.path, "-k", keys.path] + platform + ["--progress", "json"]
-        if ignoreSettings { args.append("--ignore-settings") }
         if options.output == .macApp, let app { args += ["-o", app.path] }
         for (flag, value) in [("-l", options.language), ("-p", options.package), ("--app-name", options.appName), ("--bundle-id", options.bundleID)] where !value.isEmpty {
             args += [flag, value]

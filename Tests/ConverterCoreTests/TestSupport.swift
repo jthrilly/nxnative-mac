@@ -60,7 +60,6 @@ let nxnativeCheckout: URL? = ProcessInfo.processInfo.environment["NXNATIVE_REPO"
 let scriptOptionLines = """
     ap.add_argument('--platform', choices=('ios', 'mac', 'mac-app'), help='')
     ap.add_argument('--progress', choices=('auto', 'bar', 'lines', 'json', 'off'), help='')
-    ap.add_argument('--ignore-settings', action='store_true', help='')
     ap.add_argument('--prepare-xcode', action='store_true', help='')
     ap.add_argument('--team-id', help='')
     """

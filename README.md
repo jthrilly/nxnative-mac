@@ -77,15 +77,17 @@ A folder that is not the top of a git checkout counts as missing, so these never
 What the app needs from the script:
 
 - **Required:** `--platform mac-app` and `--progress json`. A checkout without them can't convert; Setup says so and offers another folder.
-- **Optional:** `--ignore-settings`, which sets aside the Settings block at the top of the script, so values changed there for a Spyder run don't reach the
-  app's builds. A checkout without it gets a Setup warning, and its Settings block applies to the app's builds too.
+- **For iPhone and iPad:** `--prepare-xcode`, for an Xcode project.
+
+The options the app passes win over the Settings block at the top of the script. A value changed there for a Spyder run reaches the app's builds only for an
+option the app doesn't pass.
 
 ## What the app does
 
 Each game runs the checkout's script, one game at a time:
 
 ```
-<python> -u scripts/build_ipa_from_nsp.py <folder> -k <prod.keys> --platform mac-app --progress json [--ignore-settings] -o <folder>/<name>.app [-l <language>] [-p <version>] [--app-name …] [--bundle-id …] [--allow-damaged] [--mac-sign …] [--survey-only]
+<python> -u scripts/build_ipa_from_nsp.py <folder> -k <prod.keys> --platform mac-app --progress json -o <folder>/<name>.app [-l <language>] [-p <version>] [--app-name …] [--bundle-id …] [--allow-damaged] [--mac-sign …] [--survey-only]
 ```
 
 How it runs:

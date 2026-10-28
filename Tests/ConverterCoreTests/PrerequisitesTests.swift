@@ -184,9 +184,6 @@ struct PrerequisitesTests {
         let path = t.url.appendingPathComponent("nxnative").path
         let current = try await check(scriptOptionLines)
         #expect(current.state == .ok && current.detail == path)
-        let older = try await check(scriptOptionLines.split(separator: "\n").filter { !$0.contains("--ignore-settings") }.joined(separator: "\n"))
-        #expect(older.state == .warning && older.required && older.fixes.isEmpty)
-        #expect(older.detail.hasPrefix(path + "\nIts NSP script has no --ignore-settings"))
         let oldest = try await check("ap.add_argument('--platform', choices=('ios', 'mac'), help='')\n")
         #expect(oldest.state == .missing && oldest.fixes == [.chooseFolder(title: "Choose the nxnative Folder…")])
         #expect(oldest.detail == path + "\nIts NSP script is older than this app: it has no --platform mac-app or --progress json. Update nxnative, or choose a newer checkout.")
