@@ -111,8 +111,11 @@ extension AppModel {
             if mode != .none, !FileManager.default.fileExists(atPath: directory.path), directory.path.hasPrefix(FileManager.default.homeDirectoryForCurrentUser.path) {
                 try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
             }
-            let outcome = try await AppInstaller().install(app: app, into: directory, mode: mode)
+            // older copies of the game under other names: in the install folder, the Applications folders and the game folder
+            let copiesIn = AppInstaller.standardDestinations() + [app.deletingLastPathComponent()]
+            let outcome = try await AppInstaller().install(app: app, into: directory, mode: mode, copiesIn: copiesIn)
             if let replaced = outcome.replaced { job.note("The previous copy went to the Trash: \(replaced.path)") }
+            for copy in outcome.oldCopies { job.note("An older copy under another name went to the Trash: \(copy.path)") }
             for warning in outcome.warnings { job.note("Warning: \(warning)") }
             if outcome.warnings.isEmpty { job.note("Cleared the extended attributes (xattr -cr)") }
             if mode == .none { job.builtApp = outcome.installedURL } else {

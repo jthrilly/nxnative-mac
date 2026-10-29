@@ -79,6 +79,18 @@ struct InstallerTests {
         }
     }
 
+    @Test func olderCopiesUnderOtherNamesGoToTheTrash() async throws {
+        let s = try Setup(); defer { s.t.remove() }
+        try s.t.file("Applications/Super Game - Deluxe.app/Contents/Info.plist", Setup.plist("dash"))             // an earlier name, same game
+        try s.t.file("Games/Super Game/Super Game II.app/Contents/Info.plist", Setup.plist("built"))               // left in the game folder
+        try s.t.file("Applications/Other Game.app/Contents/Info.plist", Setup.plist("other", titleID: "0100111100000000"))
+        let out = try await s.installer().install(app: s.app, into: s.dest, mode: .copy, copiesIn: [s.app.deletingLastPathComponent()])
+        #expect(Set(out.oldCopies.map(\.lastPathComponent)) == ["Super Game - Deluxe.app", "Super Game II.app"])
+        #expect(s.text(s.dest.appendingPathComponent("Super Game.app")) == "new")
+        #expect(s.text(s.app) == "new")   // the copy it was installed from stays (copy mode)
+        #expect(FileManager.default.fileExists(atPath: s.dest.appendingPathComponent("Other Game.app").path))
+    }
+
     @Test func trashFailureKeepsOldApp() async throws {
         for mode in [InstallMode.move, .copy] {
             let s = try Setup("trashFailure\(mode)"); defer { s.t.remove() }

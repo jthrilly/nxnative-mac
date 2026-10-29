@@ -1,13 +1,18 @@
 // Putting a finished app into the Applications folder (the AppleGamingWiki guide's last steps: copy it there, then `xattr -cr` it). The app is first put beside its destination
 // as "<app>.partial": renamed there on the same volume (its game files stay APFS clones of the extracted ones), else copied, so a half-copied app never looks finished.
 // Only then does the app it replaces go to the Trash, and only when it is an nxnative app of the same game (Info.plist DMTitleID); its saves are in
-// ~/Library/Application Support/nxnative/<title ID>, which it does not touch. Any other app of that name is left as it is, and so is the new one
+// ~/Library/Application Support/nxnative/<title ID>, which it does not touch. Any other app of that name is left as it is, and so is the new one.
+// Older copies of the same game under other names (same title ID and bundle ID: an earlier build named "Game - Subtitle" or "Game 2") in the folders
+// it is given go to the Trash too, once the new app is in place
 import Darwin
 import Foundation
 
 public enum InstallMode: String, Sendable, Codable, CaseIterable { case move, copy, none }
 
-public struct InstallOutcome: Sendable, Equatable { public var installedURL: URL; public var replaced: URL?; public var warnings: [String] }
+public struct InstallOutcome: Sendable, Equatable {
+    public var installedURL: URL; public var replaced: URL?; public var warnings: [String]
+    public var oldCopies: [URL] = []   // older copies of the game under other names, now in the Trash (where they were)
+}
 
 public enum InstallError: Error, LocalizedError, Equatable {
     case sourceMissing(String), notWritable(String), insufficientSpace(needed: Int64, available: Int64), sameLocation(String), failed(String), foreignApp(String)
@@ -48,7 +53,8 @@ public struct AppInstaller: Sendable {
         self.trash = trash; self.clearAttributes = clearAttributes
     }
 
-    public func install(app: URL, into directory: URL, mode: InstallMode) async throws -> InstallOutcome {
+    /// `copiesIn`: the folders whose older copies of the game (other names, same title ID and bundle ID) go to the Trash once it is installed
+    public func install(app: URL, into directory: URL, mode: InstallMode, copiesIn: [URL] = []) async throws -> InstallOutcome {
         let fm = FileManager.default
         let source = app.standardized
         guard fm.fileExists(atPath: source.path) else { throw InstallError.sourceMissing(source.path) }
@@ -107,7 +113,23 @@ public struct AppInstaller: Sendable {
             do { try fm.removeItem(at: source) } catch { warnings.append("The original app could not be removed (\(source.path)): \(error.localizedDescription)") }
         }
         if let w = await clearAttributes(dest) { warnings.append(w) }
-        return InstallOutcome(installedURL: dest, replaced: replaced, warnings: warnings)
+        var old: [URL] = []
+        if let installed = InstalledAppScanner.read(app: dest) {
+            let keep: Set<String> = [Self.realPath(dest).path, Self.realPath(source).path]
+            for copy in InstalledAppScanner.scan(directories: copiesIn + [dir]) where Self.isOlderCopy(copy, of: installed) && !keep.contains(Self.realPath(copy.url).path) {
+                do { _ = try trash(copy.url); old.append(copy.url) } catch {
+                    warnings.append("An older copy could not be moved to the Trash (\(copy.url.path)): \(error.localizedDescription)")
+                }
+            }
+        }
+        return InstallOutcome(installedURL: dest, replaced: replaced, warnings: warnings, oldCopies: old)
+    }
+
+    /// Another app of the same game: the same title ID, and the same bundle ID when both have one (a build with its own bundle ID is kept)
+    static func isOlderCopy(_ app: InstalledGameApp, of installed: InstalledGameApp) -> Bool {
+        guard app.titleID.uppercased() == installed.titleID.uppercased() else { return false }
+        guard let a = app.bundleID, let b = installed.bundleID else { return true }
+        return a.lowercased() == b.lowercased()
     }
 
     /// Whether both are on one volume (a path that does not exist yet counts as its nearest existing folder's)
