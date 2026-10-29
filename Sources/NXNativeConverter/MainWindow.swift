@@ -121,7 +121,7 @@ struct MainWindow: View {
                 .toolbar { ActivityToolbar() }
         }
         .dropDestination(for: DroppedFile.self) { files, _ in
-            if !files.isEmpty { model.addFolders(files.map(\.url)) }
+            if !files.isEmpty { model.offerConversion(files.map(\.url)) }
         }
         .onDropSessionUpdated { session in dropTargeted = session.phase == .entering || session.phase == .active }
         .overlay { if showsDropOverlay { DropOverlay() } }
@@ -148,6 +148,7 @@ struct MainWindow: View {
                 .environment(model)
         }
         .sheet(item: $model.diffSheet) { ChangesSheet(item: $0) }
+        .sheet(item: $model.convertSheet) { ConvertSheet(request: $0).environment(model) }
         .sheet(item: $model.settingsSheet) { GameSettingsSheet(entry: $0).environment(model) }
         .task(id: model.isReady) { await model.refreshPortStatuses() }
         .task(id: LibraryFiles(model, generation: window.fileChecks)) { await window.checkLibraryFiles(LibraryFiles.urls(model)) }

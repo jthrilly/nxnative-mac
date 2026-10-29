@@ -64,7 +64,7 @@ private struct KeepsWindowOpener: ViewModifier {
     }
 
     func application(_ application: NSApplication, open urls: [URL]) {
-        model.addFolders(urls.filter(\.isFileURL))
+        model.offerConversion(urls.filter(\.isFileURL))
         if let window = NSApp.windows.first(where: { $0.identifier?.rawValue.hasPrefix("main") == true && $0.isVisible }) {
             window.makeKeyAndOrderFront(nil)
         } else {

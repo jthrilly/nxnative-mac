@@ -13,7 +13,7 @@ struct JobOptionsForm: View {
         @Bindable var job = job
         Form {
             Section {
-                OutputPicker("Make", selection: $job.options.output)
+                OutputPicker("Platform", selection: $job.options.output)
                     .help("A Mac app, installed like any other, or an Xcode project for iPhone and iPad that Xcode signs and installs on your device")
                 if job.match == .noProfile {
                     Toggle("Survey only", isOn: $job.options.surveyOnly)

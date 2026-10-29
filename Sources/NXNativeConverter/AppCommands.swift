@@ -144,6 +144,7 @@ struct AppCommands: Commands {
         libraryItem(.gameSettings)
             .keyboardShortcut(",", modifiers: [.command, .option])
         libraryItem(.rebuild)
+        libraryItem(.otherPlatform)
         libraryItem(.openLog)
         libraryItem(.openSaveFolder)
         Divider()

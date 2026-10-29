@@ -101,10 +101,13 @@ How it runs:
 
 The pages:
 
-- **Convert**: the queue of game folders. A folder is scanned the way the script scans it (title ID, versions, DLC), then matched with nxnative's profiles: a
+- **Convert**: the queue of game folders. A dropped or chosen folder opens the Convert sheet first: the platform (Mac, or iPhone & iPad), the language,
+  Survey only for a game with no profile, and in Advanced the version, app name, bundle ID and damaged files. Nothing is queued or started until Convert,
+  and the sheet remembers the platform. A folder is scanned the way the script scans it (title ID, versions, DLC), then matched with nxnative's profiles: a
   tested version, an untested version, or no profile. Each game has its options (what to make, language, version, app name, bundle ID, damaged files), its stages with counts and an estimate of the time left, and the log.
 - **Library**: the nxnative game apps in the install folder, `/Applications` and `~/Applications`, and the games prepared as Xcode projects. Each shows the
-  nxnative commit that built it and how far the checkout has moved since, and can be rebuilt with the current checkout. A game app's settings are under
+  nxnative commit that built it and how far the checkout has moved since, and can be rebuilt with the current checkout. **Convert for iPhone & iPad…**
+  (or **Convert for Mac…**) makes the game for the other platform too, beside the one there is. A game app's settings are under
   **Game Settings…** (see [Game settings](#game-settings)). The Library also keeps the history of every conversion.
   It looks again each time the app comes to the front, so games built or installed outside the app, and a pull of nxnative, show without a relaunch. A game
   app has to be in one of those folders, or in a game folder the app converted before.
@@ -147,8 +150,8 @@ An app without a settings list, or one this version can't read (a newer schema o
 
 ### iPhone and iPad: an Xcode project
 
-A game can be made into an Xcode project for iPhone and iPad instead of a Mac app: choose **iOS Xcode Project** under **Make** in the game's options, or make it
-the default for new games in Settings › Conversion. The app runs the script with `--platform ios --prepare-xcode`, which:
+A game can be made into an Xcode project for iPhone and iPad instead of a Mac app: choose **iPhone & iPad** in the Convert sheet, or
+**Convert for iPhone & iPad…** on a game in the Library. The app runs the script with `--platform ios --prepare-xcode`, which:
 
 - extracts and rewrites the game and builds its iOS shaders, as for an IPA;
 - writes the project to `<folder>/<title ID>_build/xcode/DmIOS.xcodeproj`;

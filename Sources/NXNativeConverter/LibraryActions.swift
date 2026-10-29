@@ -6,7 +6,7 @@ import ConverterCore
 import SwiftUI
 
 enum LibraryAction: Hashable {
-    case play, gameSettings, showInFinder, rebuild, openLog, openSaveFolder
+    case play, gameSettings, showInFinder, rebuild, otherPlatform, openLog, openSaveFolder
 
     var title: String {
         switch self {
@@ -14,6 +14,7 @@ enum LibraryAction: Hashable {
         case .gameSettings: "Game Settings…"
         case .showInFinder: "Show in Finder"
         case .rebuild: "Rebuild with Current nxnative"
+        case .otherPlatform: "Convert for Another Platform…"
         case .openLog: "Open Log"
         case .openSaveFolder: "Open Save Folder"
         }
@@ -25,6 +26,7 @@ enum LibraryAction: Hashable {
         case .gameSettings: "slider.horizontal.3"
         case .showInFinder: "folder"
         case .rebuild: "arrow.triangle.2.circlepath"
+        case .otherPlatform: "plus.square.on.square"
         case .openLog: "doc.plaintext"
         case .openSaveFolder: "externaldrive"
         }
@@ -32,6 +34,7 @@ enum LibraryAction: Hashable {
 
     /// The title for this entry: an Xcode project opens in Xcode, and is prepared again rather than rebuilt
     func title(for entry: LibraryEntry) -> String {
+        if self == .otherPlatform { return "Convert for \(entry.otherPlatform.platformName)…" }
         guard entry.isXcodeProject else { return title }
         switch self {
         case .play: return "Open in Xcode"
@@ -45,7 +48,7 @@ enum LibraryAction: Hashable {
     /// Rebuild needs the record of the conversion that built the app; an Xcode project's log and saves are on the device
     func applies(to entry: LibraryEntry) -> Bool {
         switch self {
-        case .rebuild: entry.record != nil
+        case .rebuild, .otherPlatform: entry.record != nil
         case .openLog, .openSaveFolder, .gameSettings: !entry.isXcodeProject
         case .play, .showInFinder: true
         }
@@ -56,7 +59,7 @@ enum LibraryAction: Hashable {
         switch self {
         case .play: entry.xcodeWorkspace.map { files.contains($0) } ?? true
         case .showInFinder, .gameSettings: true
-        case .rebuild: entry.record.map { files.contains($0.folderURL) } ?? false
+        case .rebuild, .otherPlatform: entry.record.map { files.contains($0.folderURL) } ?? false
         case .openLog: files.contains(entry.logFile)
         case .openSaveFolder: files.contains(entry.saveFolder)
         }
@@ -73,6 +76,9 @@ enum LibraryAction: Hashable {
         case .rebuild:
             guard enabled else { return "The game folder is not there" }
             return entry.isXcodeProject ? "Prepare the Xcode project again with the current nxnative" : "Convert the game folder again with the current nxnative"
+        case .otherPlatform:
+            guard enabled else { return "The game folder is not there" }
+            return "Make \(entry.otherPlatform == .macApp ? "a Mac app" : "an Xcode project for iPhone and iPad") of this game too, beside this one"
         case .openLog: return enabled ? entry.logFile.path : "The game has not written a log yet"
         case .openSaveFolder: return enabled ? entry.saveFolder.path : "The game has no save folder yet"
         }
@@ -84,13 +90,19 @@ enum LibraryAction: Hashable {
         case .gameSettings: model.settingsSheet = entry
         case .showInFinder: NSWorkspace.shared.activateFileViewerSelecting([entry.app.url])
         case .rebuild: if let record = entry.record { model.rebuild(record) }
+        case .otherPlatform: if let record = entry.record { model.offerOtherPlatform(record, output: entry.otherPlatform) }
         case .openLog: NSWorkspace.shared.open(entry.logFile)
         case .openSaveFolder: NSWorkspace.shared.open(entry.saveFolder)
         }
     }
 
     /// A game app's menu: its tile's context menu
-    fileprivate static let menu: [[LibraryAction]] = [[.play, .gameSettings, .showInFinder, .rebuild], [.openLog, .openSaveFolder]]
+    fileprivate static let menu: [[LibraryAction]] = [[.play, .gameSettings, .showInFinder, .rebuild, .otherPlatform], [.openLog, .openSaveFolder]]
+}
+
+extension LibraryEntry {
+    /// The platform this entry is not: Convert for Another Platform… makes it
+    var otherPlatform: ConversionOutput { isXcodeProject ? .macApp : .xcodeProject }
 }
 
 /// What the history actions apply to: the newest selected record of each game folder that is still there, and of those the failed ones with a

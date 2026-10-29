@@ -1,4 +1,5 @@
-// The selected game app or Xcode project in the Library's inspector: its art and facts, how far its nxnative is behind, what built it, and its files
+// The selected game app or Xcode project in the Library's inspector: its art and facts, how far its nxnative is behind, its platform (and converting it for
+// the other one), what built it, and its files
 import ConverterCore
 import SwiftUI
 
@@ -15,6 +16,12 @@ struct LibraryInspector: View {
                     Notice(.info, title: "\(behind) newer commit\(behind == 1 ? "" : "s") in nxnative",
                            message: entry.isXcodeProject ? "Prepare Again makes the project again with the current version."
                             : "Rebuild makes the game again with the current version.", onCard: false) { rebuild }
+                }
+            }
+            Section("Platform") {
+                LabeledContent("Made for", value: (entry.isXcodeProject ? ConversionOutput.xcodeProject : .macApp).platformName)
+                if LibraryAction.otherPlatform.applies(to: entry) {
+                    LabeledContent(entry.otherPlatform.platformName) { button("Convert…", action: .otherPlatform) }
                 }
             }
             Section("Built With") { builtWith }

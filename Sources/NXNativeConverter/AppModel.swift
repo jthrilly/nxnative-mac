@@ -88,7 +88,8 @@ struct LibraryEntry: Identifiable {
     var portOperations: [String: String] = [:]                // title ID → the git operation running on its worktree
     var portSheet: PortSheetRequest?
     var diffSheet: DiffSheetItem?
-    var settingsSheet: LibraryEntry?   // Game Settings of a game app
+    var settingsSheet: LibraryEntry?
+    var convertSheet: ConvertRequest?                        // the Convert sheet: what a drop or Add Game Folder… asks before it queues anything   // Game Settings of a game app
     var portToRemove: PortRecord?                            // Remove Port… asks first
     var terminalSessions: Set<String> = []                   // title IDs of the ports with an agent session open in Terminal
     @ObservationIgnored var portRunTasks: [UUID: Task<Void, Never>] = [:]   // by run ID
@@ -201,10 +202,57 @@ struct LibraryEntry: Identifiable {
         panel.prompt = "Add"
         panel.canChooseDirectories = true; panel.canChooseFiles = true; panel.allowsMultipleSelection = true
         guard panel.runModal() == .OK else { return }
-        addFolders(panel.urls)
+        offerConversion(panel.urls)
     }
 
-    /// Folders, game files or folders of game folders (dropped, opened with the app, chosen) → one queued job per game folder
+    /// A drop, Add Game Folder… or a folder opened with the app: scans the game folders and asks how to convert them (the Convert sheet). A folder already
+    /// in the queue, unfinished, is shown instead; nothing is queued or started until the sheet is confirmed
+    func offerConversion(_ urls: [URL], options preset: ConversionOptions? = nil, repository: URL? = nil, title: String? = nil) {
+        let folders = NSPScanner.gameFolders(from: urls)
+        guard !folders.isEmpty else {
+            page = .convert
+            let names = urls.map(\.lastPathComponent).joined(separator: ", ")
+            alert = AlertItem(title: "No game files found",
+                              message: "\(names) holds no .nsp, .xci, .nsz or .xcz files, and no folders with them. Drop one folder per game: the base game's file, plus any update and DLC.")
+            return
+        }
+        Task {
+            var games: [PendingGame] = [], queued: UUID?
+            for folder in folders {
+                if let existing = jobs.first(where: { $0.folder == folder && !$0.state.isFinished }) { queued = queued ?? existing.id; continue }
+                let scan = await Task.detached { NSPScanner.scan(folder: folder) }.value
+                games.append(PendingGame(folder: folder, scan: scan))
+            }
+            guard !games.isEmpty else {
+                if let queued { page = .convert; selectedJobID = queued }
+                return
+            }
+            var options = preset ?? ConversionOptions()
+            if preset == nil { options.language = settings.defaultLanguage; options.output = settings.defaultOutput }
+            convertSheet = ConvertRequest(games: games, profiles: await profiles(of: repository), options: options, repository: repository, title: title)
+        }
+    }
+
+    /// The Convert sheet's Convert: queues its games with the options chosen (Survey only applies to the games with no profile), remembers the platform
+    /// for the next sheet, and starts the first of them when nothing else is converting
+    func confirmConversion(_ request: ConvertRequest, options: ConversionOptions, surveyOnly: Bool) {
+        settings.defaultOutput = options.output
+        page = .convert
+        var first: ConversionJob?
+        for game in request.games where !jobs.contains(where: { $0.folder == game.folder && !$0.state.isFinished }) {
+            var opts = options
+            opts.surveyOnly = surveyOnly && request.match(game, package: opts.package) == .noProfile
+            let job = ConversionJob(folder: game.folder, scan: game.scan, profiles: request.profiles, options: opts, repository: request.repository)
+            jobs.append(job)
+            first = first ?? job
+        }
+        guard let first else { return }
+        selectedJobID = first.id
+        if canStart(first) { start(first) } else { startNextIfPossible() }
+    }
+
+    /// Folders, game files or folders of game folders → one queued job per game folder, with no sheet: Rebuild and a port's Build App (a drop goes
+    /// through the Convert sheet, offerConversion)
     /// With a repository (a port's worktree), the jobs run its script and match the game against its profiles
     func addFolders(_ urls: [URL], options: ConversionOptions? = nil, repository: URL? = nil) {
         page = .convert
@@ -419,19 +467,36 @@ struct LibraryEntry: Identifiable {
         }
         var options = record.options
         options.surveyOnly = false
-        var repository: URL?
-        if let titleID = PortRules.titleID(fromBranch: record.nxnative?.branch) {   // built by Build App: again from the port's worktree
-            let worktree = port(titleID).map { URL(fileURLWithPath: $0.workspace) }
-            if let worktree, FileManager.default.fileExists(atPath: ConversionCommand.script(in: worktree).path) {
-                repository = worktree
-            } else if !profiles.contains(where: { $0.titleID == UInt64(titleID, radix: 16) }) {
-                alert = AlertItem(title: "\(record.gameName) was built from its port",
-                                  message: "It was built from the branch \(record.nxnative?.branch ?? titleID), whose worktree is gone, and the nxnative folder has no profile for it. "
-                                    + "Converting it from there would replace the app with a provisional build that may not boot. Bring the port into nxnative first, or continue the port.")
-                return
-            }
-        }
+        guard let repository = rebuildRepository(record) else { return }
         addFolders([folder], options: options, repository: repository)
+    }
+
+    /// Convert for Another Platform…: the Convert sheet for the game folder of an app or Xcode project, with the other platform chosen and the rest of
+    /// its options; it is made beside the one there is, from the same nxnative folder or port worktree
+    func offerOtherPlatform(_ record: ConversionRecord, output: ConversionOutput) {
+        let folder = URL(fileURLWithPath: record.folder)
+        guard FileManager.default.fileExists(atPath: folder.path) else {
+            alert = AlertItem(title: "The game folder is gone", message: "\(record.folder) no longer exists. Drop the game's folder on the window to convert it again.")
+            return
+        }
+        var options = record.options
+        options.surveyOnly = false
+        options.output = output
+        guard let repository = rebuildRepository(record) else { return }
+        offerConversion([folder], options: options, repository: repository, title: "Convert \(record.gameName) for \(output.platformName)")
+    }
+
+    /// The repository to convert a record's game again from: .some(nil) for the nxnative folder, the port's worktree for a game Build App made, and nil
+    /// (with an alert) when that worktree is gone and the nxnative folder has no profile for the game
+    private func rebuildRepository(_ record: ConversionRecord) -> URL?? {
+        guard let titleID = PortRules.titleID(fromBranch: record.nxnative?.branch) else { return .some(nil) }   // built by Build App: again from the port's worktree
+        let worktree = port(titleID).map { URL(fileURLWithPath: $0.workspace) }
+        if let worktree, FileManager.default.fileExists(atPath: ConversionCommand.script(in: worktree).path) { return .some(worktree) }
+        if profiles.contains(where: { $0.titleID == UInt64(titleID, radix: 16) }) { return .some(nil) }
+        alert = AlertItem(title: "\(record.gameName) was built from its port",
+                          message: "It was built from the branch \(record.nxnative?.branch ?? titleID), whose worktree is gone, and the nxnative folder has no profile for it. "
+                            + "Converting it from there would replace the app with a provisional build that may not boot. Bring the port into nxnative first, or continue the port.")
+        return nil
     }
 
     func newestRecord(folder: String) -> ConversionRecord? { records.last { $0.folder == folder } }
