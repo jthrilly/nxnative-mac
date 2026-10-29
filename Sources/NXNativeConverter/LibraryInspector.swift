@@ -78,7 +78,12 @@ struct LibraryInspector: View {
                 + (entry.modified ? [Text("modified")] : [])
             Self.joined(parts).textSelection(.enabled)
         } else {
-            Text("Unknown nxnative version").foregroundStyle(Tone.warning.text)
+            LabeledContent {
+                rebuild
+            } label: {
+                Text("Unknown nxnative version").foregroundStyle(Tone.warning.text)
+                Text("Built outside nxnative Converter. Rebuild it to record the version.")
+            }
         }
         if let date = entry.commitDate {
             LabeledContent("Date", value: date.formatted(date: .abbreviated, time: .shortened))

@@ -48,7 +48,7 @@ enum LibraryAction: Hashable {
     /// Rebuild needs the record of the conversion that built the app; an Xcode project's log and saves are on the device
     func applies(to entry: LibraryEntry) -> Bool {
         switch self {
-        case .rebuild, .otherPlatform: entry.record != nil
+        case .rebuild, .otherPlatform: true   // without a record, the game folder is looked for or chosen (AppModel.gameFolder)
         case .openLog, .openSaveFolder, .gameSettings: !entry.isXcodeProject
         case .play, .showInFinder: true
         }
@@ -59,7 +59,7 @@ enum LibraryAction: Hashable {
         switch self {
         case .play: entry.xcodeWorkspace.map { files.contains($0) } ?? true
         case .showInFinder, .gameSettings: true
-        case .rebuild, .otherPlatform: entry.record.map { files.contains($0.folderURL) } ?? false
+        case .rebuild, .otherPlatform: true
         case .openLog: files.contains(entry.logFile)
         case .openSaveFolder: files.contains(entry.saveFolder)
         }
@@ -74,10 +74,9 @@ enum LibraryAction: Hashable {
         case .gameSettings: return "Choose the settings \(entry.app.name) starts with, or start it once with others"
         case .showInFinder: return entry.isXcodeProject ? "Show the Xcode project in Finder" : "Show the app in Finder"
         case .rebuild:
-            guard enabled else { return "The game folder is not there" }
-            return entry.isXcodeProject ? "Prepare the Xcode project again with the current nxnative" : "Convert the game folder again with the current nxnative"
+            let again = entry.isXcodeProject ? "Prepare the Xcode project again with the current nxnative" : "Convert the game folder again with the current nxnative"
+            return entry.record.map { files.contains($0.folderURL) } == true ? again : again + "; you choose the game folder if the app does not know it"
         case .otherPlatform:
-            guard enabled else { return "The game folder is not there" }
             return "Make \(entry.otherPlatform == .macApp ? "a Mac app" : "an Xcode project for iPhone and iPad") of this game too, beside this one"
         case .openLog: return enabled ? entry.logFile.path : "The game has not written a log yet"
         case .openSaveFolder: return enabled ? entry.saveFolder.path : "The game has no save folder yet"
@@ -89,8 +88,8 @@ enum LibraryAction: Hashable {
         case .play: NSWorkspace.shared.open(entry.xcodeWorkspace ?? entry.app.url)
         case .gameSettings: model.settingsSheet = entry
         case .showInFinder: NSWorkspace.shared.activateFileViewerSelecting([entry.app.url])
-        case .rebuild: if let record = entry.record { model.rebuild(record) }
-        case .otherPlatform: if let record = entry.record { model.offerOtherPlatform(record, output: entry.otherPlatform) }
+        case .rebuild: model.rebuild(entry)
+        case .otherPlatform: model.offerOtherPlatform(entry)
         case .openLog: NSWorkspace.shared.open(entry.logFile)
         case .openSaveFolder: NSWorkspace.shared.open(entry.saveFolder)
         }

@@ -136,7 +136,7 @@ struct LibraryPage: View {
         switch tab {
         case .games:
             let games = model.library.count
-            let rebuildable = model.library.filter { entry in entry.record != nil && (entry.commit.flatMap { model.commitsBehind[$0] } ?? 0) > 0 }.count
+            let rebuildable = model.library.filter { entry in entry.commit == nil || (entry.commit.flatMap { model.commitsBehind[$0] } ?? 0) > 0 }.count
             return "\(games) game\(games == 1 ? "" : "s")" + (rebuildable > 0 ? " · \(rebuildable) can be rebuilt" : "")
         case .history:
             let conversions = model.records.count

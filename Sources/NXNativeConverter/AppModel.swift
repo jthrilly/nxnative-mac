@@ -489,6 +489,42 @@ struct LibraryEntry: Identifiable {
         addFolders([folder], options: options, repository: repository)
     }
 
+    /// Rebuild of a Library entry: from its record (its options and repository), else, for an app built outside the converter (its nxnative version
+    /// unknown), through the Convert sheet for its game folder, found or chosen
+    func rebuild(_ entry: LibraryEntry) {
+        if let record = entry.record, FileManager.default.fileExists(atPath: record.folder) { return rebuild(record) }
+        guard let folder = gameFolder(for: entry) else { return }
+        var options = ConversionOptions()
+        options.output = entry.isXcodeProject ? .xcodeProject : .macApp
+        options.language = entry.app.language ?? settings.defaultLanguage
+        offerConversion([folder], options: options, title: "Rebuild \(entry.app.name)", platforms: [options.output])
+    }
+
+    /// Convert for Another Platform… on a Library entry: from its record, else from its game folder, found or chosen
+    func offerOtherPlatform(_ entry: LibraryEntry) {
+        if let record = entry.record, FileManager.default.fileExists(atPath: record.folder) { return offerOtherPlatform(record, output: entry.otherPlatform) }
+        guard let folder = gameFolder(for: entry) else { return }
+        var options = ConversionOptions()
+        options.output = entry.otherPlatform
+        options.language = entry.app.language ?? settings.defaultLanguage
+        offerConversion([folder], options: options, title: "Convert \(entry.app.name) for \(entry.otherPlatform.platformName)", platforms: [entry.otherPlatform])
+    }
+
+    /// The game folder of a Library entry: its record's, else the folder a conversion of the same game used, else one chosen in an Open panel (an app the
+    /// NSP script built outside the converter has no record)
+    private func gameFolder(for entry: LibraryEntry) -> URL? {
+        let fm = FileManager.default
+        if let record = entry.record, fm.fileExists(atPath: record.folder) { return record.folderURL }
+        if let record = records.last(where: { $0.titleID?.uppercased() == entry.app.titleID.uppercased() && fm.fileExists(atPath: $0.folder) }) { return record.folderURL }
+        let panel = NSOpenPanel()
+        panel.title = "Choose the Game Folder"
+        panel.message = "\(entry.app.name) was not built by nxnative Converter, so it does not know where its game files are. Choose the folder with them "
+            + "(the base game's .nsp or .xci, and any update and DLC)."
+        panel.prompt = "Choose"
+        panel.canChooseDirectories = true; panel.canChooseFiles = false; panel.allowsMultipleSelection = false
+        return panel.runModal() == .OK ? panel.url : nil
+    }
+
     /// Convert for Another Platform…: the Convert sheet for the game folder of an app or Xcode project, with the other platform chosen and the rest of
     /// its options; it is made beside the one there is, from the same nxnative folder or port worktree
     func offerOtherPlatform(_ record: ConversionRecord, output: ConversionOutput) {
