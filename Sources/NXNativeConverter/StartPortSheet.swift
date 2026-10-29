@@ -48,6 +48,7 @@ struct StartPortSheet: View {
         Form {
             agentSection
             modeSection
+            modelSection
             limitsSection
             sandboxSection
             instructionsSection
@@ -199,7 +200,20 @@ struct StartPortSheet: View {
             NumberField("Time limit", unit: "hours", text: $hoursText)
                 .disabled(interactive)
                 .help("The app stops the agent after this long; its work is saved as a checkpoint")
-            TextField("Model", text: kind == .claudeCode ? $claudeModel : $codexModel, prompt: Text("Default"))
+        }
+    }
+
+    private var modelSection: some View {
+        Section {
+            switch kind {
+            case .claudeCode: ClaudeModelPicker("Model", selection: $claudeModel)
+            case .codex: TextField("Model", text: $codexModel, prompt: Text("Default"))
+            }
+        } header: {
+            Text("Model")
+        } footer: {
+            Text(kind == .claudeCode ? "The Claude model the agent runs on (--model). The default is Opus 5.5; set another in Settings › Agents."
+                 : "The model Codex runs on (-m); empty uses your Codex settings.").foregroundStyle(.secondary)
         }
     }
 

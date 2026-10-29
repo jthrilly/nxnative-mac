@@ -553,6 +553,41 @@ struct LanguagePicker: View {
     }
 }
 
+/// The Claude model a port's agent runs on (claude --model): the current models by name, Claude Code's own default, or another model ID typed in
+struct ClaudeModelPicker: View {
+    private static let models = ClaudeModels.all
+    private static let other = "\u{0}other"
+
+    private let title: String
+    @Binding private var selection: String
+    @State private var typing = false
+
+    init(_ title: String, selection: Binding<String>) {
+        self.title = title; _selection = selection
+    }
+
+    var body: some View {
+        Picker(title, selection: choice) {
+            ForEach(Self.models, id: \.id) { Text($0.name).tag($0.id) }
+            Divider()
+            Text("Claude Code's default").tag("")
+            Text("Other…").tag(Self.other)
+        }
+        if showsField {
+            TextField("Model ID", text: $selection, prompt: Text("claude-…"))
+        }
+    }
+
+    private var isKnown: Bool { selection.isEmpty || Self.models.contains { $0.id == selection } }
+    private var showsField: Bool { typing || !isKnown }
+
+    private var choice: Binding<String> {
+        Binding(get: { showsField ? Self.other : selection }, set: { value in
+            if value == Self.other { typing = true } else { typing = false; selection = value }
+        })
+    }
+}
+
 /// What a conversion makes: a Mac app, or an Xcode project for iPhone and iPad
 struct OutputPicker: View {
     private let title: String

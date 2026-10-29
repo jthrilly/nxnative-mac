@@ -19,6 +19,14 @@ public enum CodexSandbox: String, Sendable, Codable, CaseIterable { case workspa
 // the best-effort keys hook. Like CodexSandbox, but the mechanism is settings, not a flag
 public enum ClaudeSandbox: String, Sendable, Codable, CaseIterable { case sandboxed, fullAccess }
 
+/// The Claude models a port's agent can run on (claude --model), newest first, and the one a port uses unless another is chosen
+public enum ClaudeModels {
+    public static let defaultModel = "claude-opus-5-5"
+    public static let all: [(id: String, name: String)] = [
+        ("claude-opus-5-5", "Opus 5.5"), ("claude-sonnet-5-5", "Sonnet 5.5"), ("claude-haiku-5-5", "Haiku 5.5"), ("claude-fable-5-1", "Fable 5.1"),
+    ]
+}
+
 public struct AgentRunRequest: Sendable, Equatable {
     public var kind: AgentKind
     public var executable: String

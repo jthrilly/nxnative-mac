@@ -30,7 +30,7 @@ import Observation
     var codexPath: String { didSet { store(codexPath, .codexPath) } }
     var agentBudgetUSD: Double { didSet { store(agentBudgetUSD, .agentBudgetUSD) } }
     var agentTimeLimitHours: Double { didSet { store(agentTimeLimitHours, .agentTimeLimitHours) } }
-    var claudeModel: String { didSet { store(claudeModel, .claudeModel) } }               // "" = the agent's default
+    var claudeModel: String { didSet { store(claudeModel, .claudeModel) } }               // "" = the agent's default; unset: Opus 5.5
     var codexModel: String { didSet { store(codexModel, .codexModel) } }
     var claudeSandbox: ClaudeSandbox { didSet { store(claudeSandbox.rawValue, .claudeSandbox) } }   // Claude Code's own sandbox around its commands
     var codexSandbox: CodexSandbox { didSet { store(codexSandbox.rawValue, .codexSandbox) } }
@@ -62,7 +62,7 @@ import Observation
         codexPath = defaults.string(forKey: Key.codexPath.rawValue) ?? ""
         agentBudgetUSD = defaults.object(forKey: Key.agentBudgetUSD.rawValue) as? Double ?? 20
         agentTimeLimitHours = defaults.object(forKey: Key.agentTimeLimitHours.rawValue) as? Double ?? 4
-        claudeModel = defaults.string(forKey: Key.claudeModel.rawValue) ?? ""
+        claudeModel = defaults.string(forKey: Key.claudeModel.rawValue) ?? ClaudeModels.defaultModel
         codexModel = defaults.string(forKey: Key.codexModel.rawValue) ?? ""
         claudeSandbox = defaults.string(forKey: Key.claudeSandbox.rawValue).flatMap(ClaudeSandbox.init(rawValue:)) ?? .sandboxed
         codexSandbox = defaults.string(forKey: Key.codexSandbox.rawValue).flatMap(CodexSandbox.init(rawValue:)) ?? .workspaceWrite

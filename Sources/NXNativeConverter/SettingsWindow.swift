@@ -193,7 +193,7 @@ private struct AgentsPane: View {
             Section {
                 NumberField("Budget (Claude Code)", unit: "USD", text: budgetText)
                 NumberField("Time limit", unit: "hours", text: hoursText)
-                TextField("Claude Code model", text: $settings.claudeModel, prompt: Text("Default"))
+                ClaudeModelPicker("Claude Code model", selection: $settings.claudeModel)
                 TextField("Codex model", text: $settings.codexModel, prompt: Text("Default"))
             } header: {
                 Text("Defaults for a Run")
