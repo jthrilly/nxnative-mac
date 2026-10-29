@@ -81,6 +81,19 @@ struct PortRulesTests {
         #expect(PortRules.runBlock(port, PortSituation(conversion: (name: "Other", folder: "/Volumes/Games/Other", repository: "/Users/p/nxnative"))) == nil)
     }
 
+    @Test func currentFailure() {
+        let t = Date(timeIntervalSince1970: 1_790_000_000)
+        func record(_ minutes: Double, _ status: ConversionStatus, folder: String = "/Volumes/Games/Super Game") -> ConversionRecord {
+            ConversionRecord(folder: folder, gameName: "Super Game", startedAt: t.addingTimeInterval(minutes * 60), status: status, message: "error at \(Int(minutes))")
+        }
+        let failedThenOther = [record(0, .failed), record(5, .failed, folder: "/Volumes/Games/Other")]
+        #expect(PortRules.currentFailure(failedThenOther, folder: "/Volumes/Games/Super Game/", since: nil)?.message == "error at 0")
+        #expect(PortRules.currentFailure(failedThenOther, folder: "/Volumes/Games/Super Game", since: t.addingTimeInterval(60)) == nil)   // older than the last run
+        #expect(PortRules.currentFailure([record(0, .failed), record(10, .succeeded)], folder: "/Volumes/Games/Super Game", since: nil) == nil)   // fixed since
+        #expect(PortRules.currentFailure([record(10, .failed), record(0, .succeeded)], folder: "/Volumes/Games/Super Game", since: t)?.message == "error at 10")
+        #expect(PortRules.failureSource(record(0, .failed)).hasPrefix("the conversion of "))
+    }
+
     @Test func operationAndBuildBlocks() {
         let elsewhere = PortSituation(agent: (titleID: "0100FFFF00000000", name: "Codex", game: "Other"))
         let here = PortSituation(agent: (titleID: port.titleID, name: "Claude Code", game: "Super Game"))

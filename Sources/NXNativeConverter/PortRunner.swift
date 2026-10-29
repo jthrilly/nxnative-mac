@@ -394,15 +394,17 @@ extension AppModel {
         let survey = ConversionCommand.surveyFile(folder: folder, titleID: titleID)
         let provisional = ConversionCommand.provisionalProfile(folder: folder, titleID: titleID)
         let logs = request.lastLogs ?? ConversionCommand.logsFolder(folder: folder, titleID: titleID)
-        let lastError = request.lastError ?? records.last { $0.folder == folder.path && $0.status == .failed }?.message
+        let continuing = request.continuing || !port.runs.isEmpty
+        // the newest conversion's error, unless it is older than the last run: the agent may have fixed it since (an earlier failure is stale)
+        let failure = PortRules.currentFailure(records, folder: folder.path, since: continuing ? port.runs.last?.startedAt : nil)
+        let lastError = failure?.message ?? (records.contains { PortRules.samePath($0.folder, folder.path) } ? nil : request.lastError)
         let context = PortContext(
             titleID: titleID, gameName: port.gameName, versions: scan.versions, nspFolder: folder, keysFile: keys, workspace: ws.path, branch: port.branch,
             survey: fm.fileExists(atPath: survey.path) ? survey : nil,
             provisionalProfile: fm.fileExists(atPath: provisional.appendingPathComponent("game.tsv").path) ? provisional : nil,
-            lastLogs: fm.fileExists(atPath: logs.path) ? logs : nil, lastError: lastError, agent: options.kind,
+            lastLogs: fm.fileExists(atPath: logs.path) ? logs : nil, lastError: lastError, lastErrorSource: failure.map(PortRules.failureSource), agent: options.kind,
             sandboxed: options.kind == .claudeCode && options.claudeSandbox == .sandboxed)
         let instructions = options.instructions.trimmingCharacters(in: .whitespacesAndNewlines)
-        let continuing = request.continuing || !port.runs.isEmpty
         let prompt = continuing ? PortPrompt.continuation(context, previous: port.latestReport, instructions: instructions)
             : PortPrompt.initial(context, instructions: instructions)
         try prompt.write(to: promptFile, atomically: true, encoding: .utf8)

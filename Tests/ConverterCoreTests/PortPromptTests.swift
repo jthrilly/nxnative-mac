@@ -11,7 +11,8 @@ struct PortPromptTests {
                     workspace: URL(fileURLWithPath: "/Users/player/nxnative-ports/0100ABCD00000000"), branch: "port/0100ABCD00000000",
                     survey: existing ? ConversionCommand.surveyFile(folder: folder, titleID: "0100ABCD00000000") : nil,
                     provisionalProfile: existing ? ConversionCommand.provisionalProfile(folder: folder, titleID: "0100ABCD00000000") : nil,
-                    lastLogs: existing ? ConversionCommand.logsFolder(folder: folder, titleID: "0100ABCD00000000") : nil, lastError: existing ? "Abort 0x2A2" : nil, agent: agent,
+                    lastLogs: existing ? ConversionCommand.logsFolder(folder: folder, titleID: "0100ABCD00000000") : nil, lastError: existing ? "Abort 0x2A2" : nil,
+                    lastErrorSource: existing ? "the conversion of 29 Oct 2026 at 18:02 with nxnative 5654459abcde" : nil, agent: agent,
                     sandboxed: sandboxed)
     }
 
@@ -20,7 +21,7 @@ struct PortPromptTests {
         for s in ["\"Super Game\"", "0100ABCD00000000", "v0, v65536", "/Volumes/Games/Super Game", "/Volumes/Games/Super Game/0100ABCD00000000-work",
                   "Keys: /Users/player/.switch/prod.keys", "/Users/player/nxnative-ports/0100ABCD00000000", "port/0100ABCD00000000", "AGENTS.md", "docs/agents/README.md",
                   "/Volumes/Games/Super Game/0100ABCD00000000_survey/survey.md", "/Volumes/Games/Super Game/0100ABCD00000000_build/profile/0100ABCD00000000",
-                  "/Volumes/Games/Super Game/0100ABCD00000000_build/logs", "Abort 0x2A2", "Do not commit", "the key file cannot be read, not even by the repository's tools",
+                  "/Volumes/Games/Super Game/0100ABCD00000000_build/logs", "Abort 0x2A2", "reproduce it before acting on it", "Do not commit", "the key file cannot be read, not even by the repository's tools",
                   "report it as a blocker",
                   "--platform mac-app", "-k '/Users/player/.switch/prod.keys'", "'/Volumes/Games/Super Game'"] {
             #expect(p.contains(s), "\(s)")

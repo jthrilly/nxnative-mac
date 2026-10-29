@@ -66,6 +66,20 @@ public enum PortRules {
         return s.terminalSession ? .terminalSession : nil
     }
 
+    /// The conversion whose error a port's agent is told about: the newest conversion of the game folder, when it failed and, for a further run, started after
+    /// the port's last run began (an older failure may be one the agent has fixed since)
+    public static func currentFailure(_ records: [ConversionRecord], folder: String, since: Date?) -> ConversionRecord? {
+        guard let newest = records.filter({ samePath($0.folder, folder) }).max(by: { $0.startedAt < $1.startedAt }), newest.status == .failed else { return nil }
+        if let since, newest.startedAt < since { return nil }
+        return newest
+    }
+
+    /// Where an error came from, for the agent: "the conversion of 29 Oct 2026 at 18:02 with nxnative 5654459abcde"
+    public static func failureSource(_ record: ConversionRecord) -> String {
+        "the conversion of " + record.startedAt.formatted(date: .abbreviated, time: .shortened)
+            + (record.nxnative.map { " with nxnative \($0.shortCommit)" + ($0.modified ? " (with local changes)" : "") } ?? "")
+    }
+
     public static func samePath(_ a: String, _ b: String) -> Bool {
         !a.isEmpty && !b.isEmpty && URL(fileURLWithPath: a).standardizedFileURL.path == URL(fileURLWithPath: b).standardizedFileURL.path
     }

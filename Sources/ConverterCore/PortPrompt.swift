@@ -7,12 +7,14 @@ public struct PortContext: Sendable, Equatable {
     public var titleID: String; public var gameName: String; public var versions: [Int]; public var nspFolder: URL; public var keysFile: URL
     public var workspace: URL; public var branch: String; public var survey: URL?; public var provisionalProfile: URL?
     public var lastLogs: URL?; public var lastError: String?; public var agent: AgentKind; public var sandboxed: Bool
+    public var lastErrorSource: String?   // which conversion the error is from ("the conversion of <date> with nxnative <commit>")
 
     public init(titleID: String, gameName: String, versions: [Int], nspFolder: URL, keysFile: URL, workspace: URL, branch: String, survey: URL? = nil,
-                provisionalProfile: URL? = nil, lastLogs: URL? = nil, lastError: String? = nil, agent: AgentKind, sandboxed: Bool = false) {
+                provisionalProfile: URL? = nil, lastLogs: URL? = nil, lastError: String? = nil, lastErrorSource: String? = nil, agent: AgentKind,
+                sandboxed: Bool = false) {
         self.titleID = titleID; self.gameName = gameName; self.versions = versions; self.nspFolder = nspFolder; self.keysFile = keysFile; self.workspace = workspace
         self.branch = branch; self.survey = survey; self.provisionalProfile = provisionalProfile; self.lastLogs = lastLogs; self.lastError = lastError; self.agent = agent
-        self.sandboxed = sandboxed
+        self.sandboxed = sandboxed; self.lastErrorSource = lastErrorSource
     }
 }
 
@@ -89,7 +91,10 @@ public enum PortPrompt {
         var lines = ["- The survey: " + (c.survey?.path ?? "none yet: step 1 of the checklist makes it."),
                      "- The provisional profile: " + (c.provisionalProfile?.path ?? "none.")]
         if let logs = c.lastLogs { lines.append("- The logs of the last conversion: \(logs.path)") }
-        if let e = c.lastError, !e.isEmpty { lines.append("- Its error: \(e)") }
+        if let e = c.lastError, !e.isEmpty {
+            let source = c.lastErrorSource.map { " (\($0); a fix in your worktree may be newer, so reproduce it before acting on it)" } ?? ""
+            lines.append("- Its error\(source): \(e)")
+        }
         return lines
     }
 
