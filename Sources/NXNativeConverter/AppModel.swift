@@ -42,9 +42,17 @@ struct LibraryEntry: Identifiable {
     var xcodeWorkspace: URL? = nil     // the workspace an Xcode project is a scheme of; nil for a Mac app
     var id: URL { app.id }
     var isXcodeProject: Bool { xcodeWorkspace != nil }
-    var commit: String? { app.nxnativeCommit ?? record?.nxnative?.commit }
-    var commitDate: Date? { app.nxnativeCommitDate ?? record?.nxnative?.commitDate }
-    var modified: Bool { app.nxnativeModified ?? record?.nxnative?.modified ?? false }
+    var commit: String? { app.nxnativeCommit ?? builtBy?.commit }
+    var commitDate: Date? { app.nxnativeCommitDate ?? (app.nxnativeCommit == nil ? builtBy?.commitDate : nil) }
+    var modified: Bool { app.nxnativeModified ?? builtBy?.modified ?? false }
+
+    /// The nxnative of the record, when the record made this app: an app the NSP script rebuilt outside the converter (newer than the record's end) was not
+    /// built by it, and its commit would count the commits behind from the old build
+    private var builtBy: NXNativeVersion? {
+        guard let record, let version = record.nxnative else { return nil }
+        if let built = app.modified, let finished = record.finishedAt, built > finished.addingTimeInterval(120) { return nil }
+        return version
+    }
 }
 
 @MainActor @Observable final class AppModel {

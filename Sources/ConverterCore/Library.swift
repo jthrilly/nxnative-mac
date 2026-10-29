@@ -1,5 +1,6 @@
 // Which nxnative built what: the converter's own record of every conversion (library.json in its Application Support folder), and the nxnative game apps found on disk,
-// whose Info.plist names the game (DMTitleID) and the nxnative commit that packed them (DMNxnativeCommit, DMNxnativeCommitDate, DMNxnativeModified: dm/mac/pack_app.py).
+// whose Info.plist names the game (DMTitleID) and the nxnative commit that packed them (DMCommit: dm/mac/pack_app.py's source_commit, a short hash with +dirty for
+// uncommitted changes; DMNxnativeCommit, DMNxnativeCommitDate and DMNxnativeModified from an older converter's packer).
 // A game prepared as an Xcode project has no app: its record names the project and the workspace it is a scheme of
 import Foundation
 
@@ -193,9 +194,11 @@ public enum InstalledAppScanner {
               let tid = info["DMTitleID"] as? String, !tid.isEmpty else { return nil }
         func string(_ key: String) -> String? { (info[key] as? String).flatMap { $0.isEmpty ? nil : $0 } }
         let date: Date? = (info["DMNxnativeCommitDate"] as? Date) ?? string("DMNxnativeCommitDate").flatMap(GitRepository.parseISODate)
+        let stamped = string("DMCommit").map { stamp in (commit: String(stamp.prefix { $0 != "+" }), dirty: stamp.hasSuffix("+dirty")) }
         return InstalledGameApp(url: app, name: string("CFBundleDisplayName") ?? string("CFBundleName") ?? app.deletingPathExtension().lastPathComponent, titleID: tid,
                                 version: string("CFBundleShortVersionString"), bundleID: string("CFBundleIdentifier"), language: string("DMLanguage"),
-                                nxnativeCommit: string("DMNxnativeCommit"), nxnativeCommitDate: date, nxnativeModified: info["DMNxnativeModified"] as? Bool,
+                                nxnativeCommit: stamped.flatMap { $0.commit.isEmpty ? nil : $0.commit } ?? string("DMNxnativeCommit"), nxnativeCommitDate: date,
+                                nxnativeModified: stamped.map(\.dirty) ?? info["DMNxnativeModified"] as? Bool,
                                 modified: try? app.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate)
     }
 

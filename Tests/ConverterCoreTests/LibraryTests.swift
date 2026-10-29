@@ -136,6 +136,12 @@ struct LibraryTests {
         #expect(a.name == "Super Game!" && a.titleID == "0100ABCD00000000" && a.version == "1.2.1" && a.bundleID == "org.nxnative.0100abcd00000000")
         #expect(a.language == "ja" && a.nxnativeCommit == "abc123" && a.nxnativeCommitDate == Date(timeIntervalSince1970: 1_790_848_800) && a.nxnativeModified == true)
         #expect(a.modified != nil)
+        // nxnative's own stamp (dm/mac/pack_app.py source_commit): a short hash, +dirty with uncommitted changes; it wins over an older converter's keys
+        let stamped = try #require(InstalledAppScanner.read(app: try makeApp(t, "Apps/Stamped.app", ["DMTitleID": "0100222200000000", "DMCommit": "0123456789ab+dirty",
+                                                                                                       "DMNxnativeCommit": "abc123"])))
+        #expect(stamped.nxnativeCommit == "0123456789ab" && stamped.nxnativeModified == true)
+        let clean = try #require(InstalledAppScanner.read(app: try makeApp(t, "Apps/Clean.app", ["DMTitleID": "0100333300000000", "DMCommit": "0123456789ab"])))
+        #expect(clean.nxnativeCommit == "0123456789ab" && clean.nxnativeModified == false)
         let old = try #require(InstalledAppScanner.read(app: try makeApp(t, "Apps/Old Game.app", ["DMTitleID": "0100111100000000"])))
         #expect(old.name == "Old Game" && old.version == nil && old.nxnativeCommit == nil && old.nxnativeCommitDate == nil && old.nxnativeModified == nil)
         #expect(InstalledAppScanner.read(app: try makeApp(t, "Apps/Other.app", ["CFBundleName": "Other"])) == nil)
