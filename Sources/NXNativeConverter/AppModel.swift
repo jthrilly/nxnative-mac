@@ -41,6 +41,7 @@ struct LibraryEntry: Identifiable {
     var app: InstalledGameApp          // a game prepared as an Xcode project: the project, as its record names it (InstalledGameApp(xcodeProjectOf:))
     var record: ConversionRecord?      // the newest record of this app (by path, else by title ID)
     var xcodeWorkspace: URL? = nil     // the workspace an Xcode project is a scheme of; nil for a Mac app
+    var otherCopies: [InstalledGameApp] = []   // older copies of the same app (same bundle ID) under other names or in the game folder, newest first
     var id: URL { app.id }
     var isXcodeProject: Bool { xcodeWorkspace != nil }
     var commit: String? { app.nxnativeCommit ?? builtBy?.commit }
@@ -399,6 +400,14 @@ struct LibraryEntry: Identifiable {
 
     // MARK: Library
 
+    /// An older copy of a game app (Library › inspector › Other Copies) to the Trash, then the Library again
+    func trashCopy(_ copy: InstalledGameApp) async {
+        do { try FileManager.default.trashItem(at: copy.url, resultingItemURL: nil) } catch {
+            alert = AlertItem(title: "\(copy.url.lastPathComponent) could not be moved to the Trash", message: error.localizedDescription)
+        }
+        await refreshLibrary()
+    }
+
     func refreshLibrary() async {
         let fm = FileManager.default
         var dirs = [settings.installDirectoryURL] + AppInstaller.standardDestinations()
@@ -415,10 +424,12 @@ struct LibraryEntry: Identifiable {
 
     private func rebuildLibrary() {
         func resolved(_ path: String?) -> String? { path.map { URL(fileURLWithPath: $0).resolvingSymlinksInPath().path } }
-        let apps = installedApps.map { app in
-            let path = app.url.resolvingSymlinksInPath().path
+        // One entry per game app: copies of it under other names or in the game folder are listed with it (otherCopies), not shown again
+        let apps = GameAppCopies.group(installedApps).map { copies in
+            let app = copies.app, path = app.url.resolvingSymlinksInPath().path
             let byPath = records.last { resolved($0.installedAppPath) == path || resolved($0.builtAppPath) == path }
-            return LibraryEntry(app: app, record: byPath ?? records.last { $0.status == .succeeded && $0.titleID == app.titleID && $0.options.output == .macApp })
+            return LibraryEntry(app: app, record: byPath ?? records.last { $0.status == .succeeded && $0.titleID == app.titleID && $0.options.output == .macApp },
+                                otherCopies: copies.others)
         }
         // A game prepared as an Xcode project, once per project (its newest record), while the project and its workspace are there
         var projects: [LibraryEntry] = []

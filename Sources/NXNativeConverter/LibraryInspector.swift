@@ -1,5 +1,6 @@
 // The selected game app or Xcode project in the Library's inspector: its art and facts, how far its nxnative is behind, its platform (and converting it for
-// the other one), what built it, and its files
+// the other one), what built it, older copies of its app, and its files
+import AppKit
 import ConverterCore
 import SwiftUI
 
@@ -25,6 +26,7 @@ struct LibraryInspector: View {
                 }
             }
             Section("Built With") { builtWith }
+            if !entry.otherCopies.isEmpty { otherCopies }
             Section("Files") { files }
         }
         .formStyle(.grouped)
@@ -88,6 +90,32 @@ struct LibraryInspector: View {
                 .lineLimit(1)
                 .truncationMode(.middle)
                 .help(location)
+        }
+    }
+
+    /// Older copies of this app under other names or in the game folder: the Library shows only the newest, and they share its settings and saves
+    private var otherCopies: some View {
+        Section {
+            ForEach(entry.otherCopies) { copy in
+                LabeledContent {
+                    HStack(spacing: Space.s) {
+                        Button("Show") { NSWorkspace.shared.activateFileViewerSelecting([copy.url]) }
+                            .help("Show \(copy.url.lastPathComponent) in Finder")
+                        Button("Move to Trash") { Task { await model.trashCopy(copy) } }
+                            .help("Move this copy to the Trash; the one the Library shows stays")
+                    }
+                } label: {
+                    Text(copy.url.lastPathComponent).lineLimit(1).truncationMode(.middle)
+                    Text(copy.url.deletingLastPathComponent().path.abbreviatedPath
+                         + (copy.modified.map { " · " + $0.formatted(date: .abbreviated, time: .shortened) } ?? ""))
+                        .lineLimit(1).truncationMode(.middle)
+                }
+                .help(copy.url.path)
+            }
+        } header: {
+            Text("Other Copies")
+        } footer: {
+            Text("Older copies of this game's app. They share its settings and saves; the Library shows the newest.").foregroundStyle(.secondary)
         }
     }
 

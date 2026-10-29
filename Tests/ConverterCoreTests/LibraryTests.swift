@@ -163,6 +163,21 @@ struct LibraryTests {
         #expect(found.map(\.titleID) == ["0100000000000B00", "0100000000000A00"])
     }
 
+    @Test func copiesOfOneGame() {
+        func app(_ path: String, _ titleID: String, bundle: String?, _ day: Double) -> InstalledGameApp {
+            InstalledGameApp(url: URL(fileURLWithPath: path), name: path, titleID: titleID, version: nil, bundleID: bundle, language: nil, nxnativeCommit: nil,
+                             nxnativeCommitDate: nil, nxnativeModified: nil, modified: Date(timeIntervalSince1970: 1_790_000_000 + day * 86_400))
+        }
+        let zeldaDash = app("/Applications/The Legend of Zelda - Echoes of Wisdom.app", "01008CF01BAAC000", bundle: "org.nxnative.01008cf01baac000", 0)
+        let zelda = app("/Applications/The Legend of Zelda Echoes of Wisdom.app", "01008CF01BAAC000", bundle: "org.nxnative.01008CF01BAAC000", 3)
+        let zeldaBuilt = app("/Games/Zelda/The Legend of Zelda - Echoes of Wisdom.app", "01008CF01BAAC000", bundle: "org.nxnative.01008cf01baac000", 2)
+        let other = app("/Applications/Other.app", "0100000000010000", bundle: nil, 1)
+        let groups = GameAppCopies.group([zeldaDash, other, zelda, zeldaBuilt])
+        #expect(groups.count == 2)
+        #expect(groups[0].app == zelda && groups[0].others == [zeldaBuilt, zeldaDash])   // the newest shows; the rest newest first
+        #expect(groups[1].app == other && groups[1].others.isEmpty)
+    }
+
     @Test func gamePaths() {
         #expect(InstalledAppScanner.saveFolder(titleID: "0100ABCD00000000").path.hasSuffix("/Library/Application Support/nxnative/0100ABCD00000000"))
         #expect(InstalledAppScanner.logFile(titleID: "0100ABCD00000000").path.hasSuffix("/Library/Logs/nxnative/0100ABCD00000000.log"))

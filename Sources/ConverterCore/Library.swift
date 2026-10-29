@@ -186,6 +186,27 @@ extension InstalledGameApp {
     }
 }
 
+/// Copies of one game's Mac app: the same build installed under another name (a dash or a numeral in the name that changed between builds) or left in the
+/// game folder. They share a bundle ID, so their settings and saves too; the Library shows one of them
+public struct GameAppCopies: Sendable, Equatable {
+    public var app: InstalledGameApp        // the newest, by its bundle's modification date
+    public var others: [InstalledGameApp]   // newest first
+
+    /// One group per bundle ID (the title ID when an app has none), in the order of their first app
+    public static func group(_ apps: [InstalledGameApp]) -> [GameAppCopies] {
+        var keys: [String] = [], groups: [String: [InstalledGameApp]] = [:]
+        for app in apps {
+            let key = (app.bundleID ?? app.titleID).lowercased()
+            if groups[key] == nil { keys.append(key) }
+            groups[key, default: []].append(app)
+        }
+        return keys.compactMap { key in
+            let sorted = (groups[key] ?? []).sorted { ($0.modified ?? .distantPast) > ($1.modified ?? .distantPast) }
+            return sorted.first.map { GameAppCopies(app: $0, others: Array(sorted.dropFirst())) }
+        }
+    }
+}
+
 public enum InstalledAppScanner {
     static func read(app url: URL) -> InstalledGameApp? {
         let app = AppInstaller.realPath(url)
