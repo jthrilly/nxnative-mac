@@ -189,6 +189,10 @@ Claude Code runs in its sandbox, which a run without it stops on:
 - it can write only to the worktree, the game's folder, the game apps' log and save folders and the build tools' caches;
 - it can reach only GitHub, PyPI, NuGet and the .NET downloads.
 
+The sandbox has no Metal device and no sysctl, so the game's own tools run outside it: the NSP script, the work folder's `run/boot.sh` and the
+Mac host (`dm/host/dmhost`), when the agent runs them as commands of their own. They run with your full access, and the agent can edit them, so the hook
+and the prompt's rules are what keep the key file out of them.
+
 On top of the sandbox, a hook on every tool runs this app's own executable with `--keys-guard`. It blocks any file tool or command that would read the key
 file, and fails closed when the app is missing. Codex runs sandboxed to the worktree and the game's folder, and is told not to read the key file.
 

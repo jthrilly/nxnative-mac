@@ -131,7 +131,7 @@ public enum ConversionCommand {
     }
 
     /// Where AGENTS.md has extraction, runs and analysis of a game done: beside the NSP script's build folder
-    static func workFolder(folder: URL, titleID: String) -> URL { folder.appendingPathComponent("\(titleID)-work", isDirectory: true) }
+    public static func workFolder(folder: URL, titleID: String) -> URL { folder.appendingPathComponent("\(titleID)-work", isDirectory: true) }
 
     // dm/tools/nacp.py LANGUAGES: the order of the control data's languages
     public static let languages: [(code: String, name: String)] = [

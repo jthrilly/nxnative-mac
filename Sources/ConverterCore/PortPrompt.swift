@@ -26,7 +26,7 @@ public enum PortPrompt {
             "This working directory (\(c.workspace.path)) is a git worktree of nxnative on branch \(c.branch), made for this port by the nxnative Converter app.",
             "",
             "Read AGENTS.md first and follow it: it is the repository's rulebook. Then read docs/agents/README.md and work through its checklist for a new title.",
-            "The game's files are in \(folder). Do extraction, runs and analysis in \(c.nspFolder.appendingPathComponent("\(c.titleID)-work").path), as AGENTS.md says; never put game files in the repository.",
+            "The game's files are in \(folder). Do extraction, runs and analysis in \(ConversionCommand.workFolder(folder: c.nspFolder, titleID: c.titleID).path), as AGENTS.md says; never put game files in the repository.",
             "",
         ]
         lines += keyRules(c)
@@ -52,7 +52,7 @@ public enum PortPrompt {
     public static func continuation(_ c: PortContext, previous: AgentReport?, instructions: String) -> String {
         var lines = [
             "Continue the port of the Nintendo Switch game \"\(c.gameName)\" (title ID \(c.titleID)) to nxnative, in this worktree (\(c.workspace.path), branch \(c.branch)).",
-            "The game's files: \(c.nspFolder.path) (work folder \(c.nspFolder.appendingPathComponent("\(c.titleID)-work").path)). AGENTS.md and docs/agents/README.md are the method, as before.",
+            "The game's files: \(c.nspFolder.path) (work folder \(ConversionCommand.workFolder(folder: c.nspFolder, titleID: c.titleID).path)). AGENTS.md and docs/agents/README.md are the method, as before.",
             "",
         ]
         if let p = previous {
@@ -78,9 +78,14 @@ public enum PortPrompt {
         var lines = ["Keys: \(c.keysFile.path). Pass this path to the repository's tools (-k). Never read, print, copy or upload the key file or any key value."]
         switch (c.agent, c.sandboxed) {
         case (.claudeCode, true):
-            lines += ["Your commands run in a sandbox in which the key file cannot be read, not even by the repository's tools, and a guard catches common ways to read it;",
-                      "do not try to work around either. The NSP script reuses the game files already extracted in the game's folder (the survey's and the last conversion's).",
-                      "If a step needs the keys (a version or DLC not extracted yet, an NSZ not converted yet), stop and report it as a blocker: the app extracts it outside the sandbox."]
+            let boot = quote(ConversionCommand.workFolder(folder: c.nspFolder, titleID: c.titleID).appendingPathComponent("run/boot.sh").path)
+            lines += ["Your commands run in a sandbox in which the key file cannot be read, and a guard catches common ways to read it; do not try to work around either.",
+                      "The sandbox has no Metal device and no sysctl, so these run outside it: `python3 scripts/build_ipa_from_nsp.py …` (from this worktree), `\(boot) …`",
+                      "and `dm/host/dmhost …`. Run each as a command of its own in exactly that form: a `cd`, a pipe, a redirect, `$(…)`, `&&` with another command,",
+                      "a wrapper or a variable assignment in front keeps it in the sandbox, where the host stops at \"no Metal device\" and the NSP script",
+                      "takes this Mac for an Intel one. Pass settings to boot.sh as its VAR=value arguments, limit a run with its seconds argument, and read the output from its log files afterwards.",
+                      "These tools run with the user's full access: the NSP script may use the keys (-k), and you must never change any of them to read, print or copy the key",
+                      "file. Other tools (hactool) cannot read the keys: extract through the NSP script, and if a step needs the keys any other way, report it as a blocker."]
         case (.claudeCode, false): lines.append("A guard catches common ways to read the key file; do not try to work around it.")
         case (.codex, _): lines.append("The app cannot enforce this for you: it is your responsibility.")
         }

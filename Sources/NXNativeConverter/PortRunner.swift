@@ -387,7 +387,9 @@ extension AppModel {
         let claudeSettings = runFolder.appendingPathComponent("claude-settings.json")
         let promptFile = runFolder.appendingPathComponent("\(runID.uuidString)-prompt.txt")
         try AgentReport.jsonSchema.write(to: schema, atomically: true, encoding: .utf8)
-        try KeysGuard.claudeSettings(guardCommand: guardCommand, keyFiles: [keys.path], sandbox: options.claudeSandbox).write(to: claudeSettings, atomically: true, encoding: .utf8)
+        let gameTools = KeysGuard.gameToolCommands(worktree: ws.path.path, workFolder: ConversionCommand.workFolder(folder: request.folder, titleID: titleID).path)
+        try KeysGuard.claudeSettings(guardCommand: guardCommand, keyFiles: [keys.path], sandbox: options.claudeSandbox, unsandboxed: gameTools)
+            .write(to: claudeSettings, atomically: true, encoding: .utf8)
 
         let folder = request.folder
         let scan = await Task.detached { NSPScanner.scan(folder: folder) }.value

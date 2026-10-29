@@ -21,8 +21,8 @@ struct PortPromptTests {
         for s in ["\"Super Game\"", "0100ABCD00000000", "v0, v65536", "/Volumes/Games/Super Game", "/Volumes/Games/Super Game/0100ABCD00000000-work",
                   "Keys: /Users/player/.switch/prod.keys", "/Users/player/nxnative-ports/0100ABCD00000000", "port/0100ABCD00000000", "AGENTS.md", "docs/agents/README.md",
                   "/Volumes/Games/Super Game/0100ABCD00000000_survey/survey.md", "/Volumes/Games/Super Game/0100ABCD00000000_build/profile/0100ABCD00000000",
-                  "/Volumes/Games/Super Game/0100ABCD00000000_build/logs", "Abort 0x2A2", "reproduce it before acting on it", "Do not commit", "the key file cannot be read, not even by the repository's tools",
-                  "report it as a blocker",
+                  "/Volumes/Games/Super Game/0100ABCD00000000_build/logs", "Abort 0x2A2", "reproduce it before acting on it", "Do not commit", "the key file cannot be read",
+                  "report it as a blocker", "'/Volumes/Games/Super Game/0100ABCD00000000-work/run/boot.sh' …", "no Metal device",
                   "--platform mac-app", "-k '/Users/player/.switch/prod.keys'", "'/Volumes/Games/Super Game'"] {
             #expect(p.contains(s), "\(s)")
         }

@@ -90,7 +90,8 @@ struct KeysGuardTests {
 
     @Test func settings() throws {
         let guardCommand = "'/Applications/nxnative Converter.app/Contents/MacOS/NXNativeConverter' --keys-guard '/Users/player/.switch/prod.keys'"
-        let s = KeysGuard.claudeSettings(guardCommand: guardCommand, keyFiles: keys, sandbox: .sandboxed)
+        let tools = KeysGuard.gameToolCommands(worktree: "/Users/player/nxnative-ports/0100ABCD00000000", workFolder: "/Volumes/Games/Super Game/0100ABCD00000000-work")
+        let s = KeysGuard.claudeSettings(guardCommand: guardCommand, keyFiles: keys, sandbox: .sandboxed, unsandboxed: tools)
         let o = try #require(try JSONSerialization.jsonObject(with: Data(s.utf8)) as? [String: Any])
         let pre = try #require(((o["hooks"] as? [String: Any])?["PreToolUse"] as? [[String: Any]])?.first)
         #expect(pre["matcher"] as? String == "*")   // every tool, not a fixed list: Monitor and MCP file tools too
@@ -111,6 +112,14 @@ struct KeysGuardTests {
         #expect(writable.contains { $0.hasPrefix("/var/folders/") && $0.hasSuffix("/C/") } && writable.contains { $0.hasPrefix("/var/folders/") && $0.hasSuffix("/T/") })
         let net = try #require(sandbox["network"] as? [String: Any])
         #expect(net["strictAllowlist"] as? Bool == true && (net["allowedDomains"] as? [String])?.contains("github.com") == true)
+        // the game tools run outside it (Metal, sysctl), in each spelling of their paths
+        let excluded = try #require(sandbox["excludedCommands"] as? [String])
+        #expect(excluded == tools)
+        for command in ["python3 scripts/build_ipa_from_nsp.py *", "dm/host/dmhost *", "'/Volumes/Games/Super Game/0100ABCD00000000-work/run/boot.sh' *",
+                        "\"/Volumes/Games/Super Game/0100ABCD00000000-work/run/boot.sh\" *", "python3 /Users/player/nxnative-ports/0100ABCD00000000/scripts/build_ipa_from_nsp.py *"] {
+            #expect(excluded.contains(command), "\(command)")
+        }
+        #expect(!excluded.contains { $0.hasPrefix("cat") || $0.hasPrefix("python3 *") || $0 == "*" })
     }
 
     @Test func settingsFullAccessOmitsSandbox() throws {
