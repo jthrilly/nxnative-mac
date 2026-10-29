@@ -1,6 +1,7 @@
-// The Convert sheet: what a drop, Add Game Folder… or Convert for Another Platform… asks before anything is queued. The games it found, the platform
-// to make them for (a Mac app, or an Xcode project for iPhone and iPad) as two choices at the top, the language, Survey only for a game with no profile,
-// and for a single game its version, app name and bundle ID. Nothing is queued or started until Convert; Cancel leaves the queue as it was
+// The Convert sheet: what a drop, Add Game Folder… or Convert for Another Platform… asks before anything is queued. The games it found (each with
+// Port with an Agent…), the platforms to make them for (a Mac app, an Xcode project for iPhone and iPad, or both: a job each) as two choices at the top,
+// the language, Survey only for a game with no profile, and for a single game its version, app name and bundle ID. Nothing is queued or started until
+// Convert; Cancel leaves the queue as it was
 import ConverterCore
 import SwiftUI
 
@@ -20,6 +21,14 @@ struct ConvertRequest: Identifiable {
     var options: ConversionOptions
     var repository: URL?
     var title: String?   // "Convert … for iPhone & iPad"; nil: from the games
+    var platforms: Set<ConversionOutput>? = nil   // the platforms chosen to start with; nil: the ones chosen last time
+
+    /// The platforms the last Convert made, else the default output of Settings
+    static let platformsKey = "convert.platforms"
+    @MainActor static func rememberedPlatforms(_ settings: AppSettings) -> Set<ConversionOutput> {
+        let saved = Set((UserDefaults.standard.string(forKey: platformsKey) ?? "").split(separator: ",").compactMap { ConversionOutput(rawValue: String($0)) })
+        return saved.isEmpty ? [settings.defaultOutput] : saved
+    }
 
     func match(_ game: PendingGame, package: String) -> ProfileMatch { GameProfiles.match(game.scan, in: profiles, package: package) }
 }
@@ -29,22 +38,28 @@ struct ConvertSheet: View {
     @Environment(\.dismiss) private var dismiss
     private let request: ConvertRequest
     @State private var options: ConversionOptions
+    @State private var platforms: Set<ConversionOutput>
     @State private var surveyOnly = false
     @State private var advanced = false
 
-    init(request: ConvertRequest) {
+    init(request: ConvertRequest, settings: AppSettings) {
         self.request = request
         _options = State(initialValue: request.options)
+        _platforms = State(initialValue: request.platforms ?? ConvertRequest.rememberedPlatforms(settings))
     }
 
     var body: some View {
         Form {
-            Section("Platform") {
-                PlatformChoice(selection: $options.output)
+            Section {
+                PlatformChoice(selection: $platforms)
                     .listRowInsets(EdgeInsets(top: Space.s, leading: Space.s, bottom: Space.s, trailing: Space.s))
-                if options.output == .xcodeProject {
+                if platforms.contains(.xcodeProject) {
                     Text(xcodeNote).font(.callout).foregroundStyle(.secondary)
                 }
+            } header: {
+                Text("Platforms")
+            } footer: {
+                Text("Choose one or both: each platform is converted in turn.").foregroundStyle(.secondary)
             }
             Section("Options") {
                 LanguagePicker("Language", selection: $options.language)
@@ -70,7 +85,12 @@ struct ConvertSheet: View {
                 }
             }
             Section(games.count == 1 ? "Game" : "\(games.count) Games") {
-                ForEach(games) { game in GameRow(game: game, match: request.match(game, package: options.package)) }
+                ForEach(games) { game in
+                    GameRow(game: game, match: request.match(game, package: options.package)) {
+                        dismiss()
+                        model.offerPort(for: game)
+                    }
+                }
             }
         }
         .formStyle(.grouped)
@@ -86,11 +106,11 @@ struct ConvertSheet: View {
             }
             ToolbarItem(placement: .confirmationAction) {
                 Button(model.isConverting ? "Add to Queue" : "Convert") {
-                    model.confirmConversion(request, options: options, surveyOnly: surveyOnly)
+                    model.confirmConversion(request, options: options, platforms: platforms, surveyOnly: surveyOnly)
                     dismiss()
                 }
                 .keyboardShortcut(.defaultAction)
-                .disabled(!games.contains { $0.scan.isConvertible })
+                .disabled(!games.contains { $0.scan.isConvertible } || platforms.isEmpty)
             }
         }
     }
@@ -143,31 +163,38 @@ struct ConvertSheet: View {
 
     private var status: String {
         if !games.contains(where: { $0.scan.isConvertible }) { return games.count == 1 ? "This folder can't be converted." : "None of these folders can be converted." }
+        if platforms.isEmpty { return "Choose a platform to convert for, or Port with an Agent under the game." }
         if model.isConverting, let active = model.activeJob { return "\(active.name) is being converted: \(games.count == 1 ? "this game starts" : "these games start") when it has finished." }
         return "The game settings (frame rate, render scale…) are chosen in the Library, under Game Settings, once the app is made."
     }
 }
 
-/// The two platforms as large choices, a radio group to VoiceOver
+/// The two platforms as large choices that each turn on and off, toggles to VoiceOver
 private struct PlatformChoice: View {
-    @Binding var selection: ConversionOutput
+    @Binding var selection: Set<ConversionOutput>
 
     var body: some View {
         HStack(spacing: Space.s) {
             ForEach(ConversionOutput.allCases, id: \.self) { output in
-                Button { selection = output } label: { card(output) }
+                Button {
+                    if selection.contains(output) { selection.remove(output) } else { selection.insert(output) }
+                } label: { card(output) }
                     .buttonStyle(.plain)
-                    .accessibilityAddTraits(selection == output ? [.isSelected] : [])
+                    .accessibilityAddTraits(selection.contains(output) ? [.isSelected, .isToggle] : [.isToggle])
                     .help(output.platformDetail)
             }
         }
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("Platform")
+        .accessibilityLabel("Platforms")
     }
 
     private func card(_ output: ConversionOutput) -> some View {
-        let selected = selection == output
+        let selected = selection.contains(output)
         return VStack(spacing: Space.xs) {
+            Image(systemName: selected ? "checkmark.circle.fill" : "circle")
+                .foregroundStyle(selected ? Color.accentColor : .secondary)
+                .frame(maxWidth: .infinity, alignment: .trailing)
+                .accessibilityHidden(true)
             Image(systemName: output.platformSymbol)
                 .font(.system(size: 28))
                 .foregroundStyle(selected ? Color.accentColor : .secondary)
@@ -190,20 +217,31 @@ private struct PlatformChoice: View {
 
 /// A game in the sheet: its art, name, versions and whether nxnative has a tested profile for it
 private struct GameRow: View {
+    @Environment(AppModel.self) private var model
     let game: PendingGame
     let match: ProfileMatch
+    let port: () -> Void
 
     var body: some View {
         HStack(spacing: Space.s) {
-            GameArtwork(game.scan.titleIDString.map { ArtworkSource.gameFolder(game.folder, titleID: $0) }, name: game.scan.displayName, size: 32)
-                .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 1) {
-                Text(game.scan.displayName).lineLimit(1)
-                Text(detail).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+            HStack(spacing: Space.s) {
+                GameArtwork(game.scan.titleIDString.map { ArtworkSource.gameFolder(game.folder, titleID: $0) }, name: game.scan.displayName, size: 32)
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(game.scan.displayName).lineLimit(1)
+                    Text(detail).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                }
             }
+            .accessibilityElement(children: .combine)
             Spacer(minLength: 0)
+            if let titleID = game.scan.titleIDString, game.scan.isConvertible {
+                let block = model.portBlockReason(titleID: titleID)
+                Button(model.port(titleID) == nil ? "Port with an Agent…" : "Continue Port…", action: port)
+                    .controlSize(.small)
+                    .disabled(block != nil)
+                    .help(block ?? "Hand this game to a coding agent that works on nxnative until it runs, instead of converting it now")
+            }
         }
-        .accessibilityElement(children: .combine)
     }
 
     private var detail: String {

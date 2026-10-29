@@ -206,9 +206,10 @@ struct LibraryEntry: Identifiable {
         offerConversion(panel.urls)
     }
 
-    /// A drop, Add Game Folder… or a folder opened with the app: scans the game folders and asks how to convert them (the Convert sheet). A folder already
-    /// in the queue, unfinished, is shown instead; nothing is queued or started until the sheet is confirmed
-    func offerConversion(_ urls: [URL], options preset: ConversionOptions? = nil, repository: URL? = nil, title: String? = nil) {
+    /// A drop, Add Game Folder… or a folder opened with the app: scans the game folders and asks how to convert them (the Convert sheet); nothing is queued
+    /// or started until the sheet is confirmed
+    func offerConversion(_ urls: [URL], options preset: ConversionOptions? = nil, repository: URL? = nil, title: String? = nil,
+                         platforms: Set<ConversionOutput>? = nil) {
         let folders = NSPScanner.gameFolders(from: urls)
         guard !folders.isEmpty else {
             page = .convert
@@ -218,34 +219,40 @@ struct LibraryEntry: Identifiable {
             return
         }
         Task {
-            var games: [PendingGame] = [], queued: UUID?
+            var games: [PendingGame] = []
             for folder in folders {
-                if let existing = jobs.first(where: { $0.folder == folder && !$0.state.isFinished }) { queued = queued ?? existing.id; continue }
                 let scan = await Task.detached { NSPScanner.scan(folder: folder) }.value
                 games.append(PendingGame(folder: folder, scan: scan))
             }
-            guard !games.isEmpty else {
-                if let queued { page = .convert; selectedJobID = queued }
-                return
-            }
             var options = preset ?? ConversionOptions()
             if preset == nil { options.language = settings.defaultLanguage; options.output = settings.defaultOutput }
-            convertSheet = ConvertRequest(games: games, profiles: await profiles(of: repository), options: options, repository: repository, title: title)
+            convertSheet = ConvertRequest(games: games, profiles: await profiles(of: repository), options: options, repository: repository, title: title,
+                                          platforms: platforms)
         }
     }
 
-    /// The Convert sheet's Convert: queues its games with the options chosen (Survey only applies to the games with no profile), remembers the platform
-    /// for the next sheet, and starts the first of them when nothing else is converting
-    func confirmConversion(_ request: ConvertRequest, options: ConversionOptions, surveyOnly: Bool) {
-        settings.defaultOutput = options.output
+    /// The Convert sheet's Convert: queues a job per game and platform with the options chosen (Survey only applies to the games with no profile, once:
+    /// a survey is the same for both), remembers the platforms for the next sheet, and starts the first job when nothing else is converting. A game
+    /// already in the queue, unfinished, for a platform is not queued again for it
+    func confirmConversion(_ request: ConvertRequest, options: ConversionOptions, platforms: Set<ConversionOutput>, surveyOnly: Bool) {
+        let outputs = ConversionOutput.allCases.filter { platforms.contains($0) }
+        if request.platforms == nil {
+            UserDefaults.standard.set(outputs.map(\.rawValue).joined(separator: ","), forKey: ConvertRequest.platformsKey)
+            if let only = outputs.first, outputs.count == 1 { settings.defaultOutput = only }
+        }
         page = .convert
         var first: ConversionJob?
-        for game in request.games where !jobs.contains(where: { $0.folder == game.folder && !$0.state.isFinished }) {
-            var opts = options
-            opts.surveyOnly = surveyOnly && request.match(game, package: opts.package) == .noProfile
-            let job = ConversionJob(folder: game.folder, scan: game.scan, profiles: request.profiles, options: opts, repository: request.repository)
-            jobs.append(job)
-            first = first ?? job
+        for game in request.games {
+            let survey = surveyOnly && request.match(game, package: options.package) == .noProfile
+            for output in survey ? Array(outputs.prefix(1)) : outputs
+            where !jobs.contains(where: { $0.folder == game.folder && $0.options.output == output && !$0.state.isFinished }) {
+                var opts = options
+                opts.output = output
+                opts.surveyOnly = survey
+                let job = ConversionJob(folder: game.folder, scan: game.scan, profiles: request.profiles, options: opts, repository: request.repository)
+                jobs.append(job)
+                first = first ?? job
+            }
         }
         guard let first else { return }
         selectedJobID = first.id
@@ -494,7 +501,7 @@ struct LibraryEntry: Identifiable {
         options.surveyOnly = false
         options.output = output
         guard let repository = rebuildRepository(record) else { return }
-        offerConversion([folder], options: options, repository: repository, title: "Convert \(record.gameName) for \(output.platformName)")
+        offerConversion([folder], options: options, repository: repository, title: "Convert \(record.gameName) for \(output.platformName)", platforms: [output])
     }
 
     /// The repository to convert a record's game again from: .some(nil) for the nxnative folder, the port's worktree for a game Build App made, and nil

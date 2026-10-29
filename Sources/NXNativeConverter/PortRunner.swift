@@ -288,6 +288,17 @@ extension AppModel {
         offerPort(titleID: titleID, gameName: record.gameName, folder: folder, lastLogs: ConversionCommand.logsFolder(folder: folder, titleID: titleID), lastError: record.message)
     }
 
+    /// "Port with an Agent…" on a game in the Convert sheet, which has closed: the start sheet opens once it is gone
+    func offerPort(for game: PendingGame) {
+        guard let titleID = game.scan.titleIDString else { return }
+        let failed = newestRecord(folder: game.folder.path).flatMap { $0.status == .failed ? $0.message : nil }
+        Task {
+            try? await Task.sleep(for: .milliseconds(350))
+            offerPort(titleID: titleID, gameName: game.scan.displayName, folder: game.folder,
+                      lastLogs: ConversionCommand.logsFolder(folder: game.folder, titleID: titleID), lastError: failed)
+        }
+    }
+
     private func offerPort(titleID: String, gameName: String, folder: URL, lastLogs: URL, lastError: String?) {
         let logs = FileManager.default.fileExists(atPath: lastLogs.path) ? lastLogs : nil
         portSheet = PortSheetRequest(titleID: titleID, gameName: port(titleID)?.gameName ?? gameName, folder: folder, continuing: port(titleID) != nil,

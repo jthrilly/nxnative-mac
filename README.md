@@ -101,9 +101,9 @@ How it runs:
 
 The pages:
 
-- **Convert**: the queue of game folders. A dropped or chosen folder opens the Convert sheet first: the platform (Mac, or iPhone & iPad), the language,
-  Survey only for a game with no profile, and in Advanced the version, app name, bundle ID and damaged files. Nothing is queued or started until Convert,
-  and the sheet remembers the platform. A folder is scanned the way the script scans it (title ID, versions, DLC), then matched with nxnative's profiles: a
+- **Convert**: the queue of game folders. A dropped or chosen folder opens the Convert sheet first: the platforms (Mac, iPhone & iPad, or both, a job each),
+  the language, Survey only for a game with no profile, and in Advanced the version, app name, bundle ID and damaged files; each game also offers Port
+  with an Agent… there. Nothing is queued or started until Convert, and the sheet remembers the platforms. A folder is scanned the way the script scans it (title ID, versions, DLC), then matched with nxnative's profiles: a
   tested version, an untested version, or no profile. Each game has its options (what to make, language, version, app name, bundle ID, damaged files), its stages with counts and an estimate of the time left, and the log.
 - **Library**: the nxnative game apps in the install folder, `/Applications` and `~/Applications`, and the games prepared as Xcode projects. Each shows the
   nxnative commit that built it and how far the checkout has moved since, and can be rebuilt with the current checkout. **Convert for iPhone & iPad…**

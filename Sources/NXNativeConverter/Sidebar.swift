@@ -149,7 +149,7 @@ private struct JobSidebarRow: View {
     var body: some View {
         HStack(spacing: Space.xs) {
             Label {
-                RowLines(title: job.name, detail: job.statusText)
+                RowLines(title: job.name, detail: job.options.surveyOnly ? job.statusText : "\(job.options.output.platformName) · \(job.statusText)")
             } icon: {
                 GameArtwork(job.artwork, name: job.name, size: 24, shape: job.isMacApp ? .app : .game)
                     .saturation(job.isUnplugged ? 0.35 : 1)
