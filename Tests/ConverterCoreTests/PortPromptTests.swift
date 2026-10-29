@@ -13,7 +13,7 @@ struct PortPromptTests {
                     provisionalProfile: existing ? ConversionCommand.provisionalProfile(folder: folder, titleID: "0100ABCD00000000") : nil,
                     lastLogs: existing ? ConversionCommand.logsFolder(folder: folder, titleID: "0100ABCD00000000") : nil, lastError: existing ? "Abort 0x2A2" : nil,
                     lastErrorSource: existing ? "the conversion of 29 Oct 2026 at 18:02 with nxnative 5654459abcde" : nil, agent: agent,
-                    sandboxed: sandboxed)
+                    sandboxed: sandboxed, bootLauncher: URL(fileURLWithPath: "/Users/player/Library/Caches/org.nxnative.converter/port-tools/0100ABCD00000000/boot.sh"))
     }
 
     @Test func initial() {
@@ -22,7 +22,7 @@ struct PortPromptTests {
                   "Keys: /Users/player/.switch/prod.keys", "/Users/player/nxnative-ports/0100ABCD00000000", "port/0100ABCD00000000", "AGENTS.md", "docs/agents/README.md",
                   "/Volumes/Games/Super Game/0100ABCD00000000_survey/survey.md", "/Volumes/Games/Super Game/0100ABCD00000000_build/profile/0100ABCD00000000",
                   "/Volumes/Games/Super Game/0100ABCD00000000_build/logs", "Abort 0x2A2", "reproduce it before acting on it", "Do not commit", "the key file cannot be read",
-                  "report it as a blocker", "'/Volumes/Games/Super Game/0100ABCD00000000-work/run/boot.sh' …", "no Metal device",
+                  "report it as a blocker", "`/Users/player/Library/Caches/org.nxnative.converter/port-tools/0100ABCD00000000/boot.sh …`", "no Metal device",
                   "--platform mac-app", "-k '/Users/player/.switch/prod.keys'", "'/Volumes/Games/Super Game'"] {
             #expect(p.contains(s), "\(s)")
         }

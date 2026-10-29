@@ -87,4 +87,17 @@ public struct PortStore: Sendable {
     public static func runFolder(titleID: String) -> URL {
         LibraryStore.converterSupport.appendingPathComponent("ports", isDirectory: true).appendingPathComponent(titleID, isDirectory: true)
     }
+
+    /// Where the app writes a port's boot.sh launcher (bootLauncher): a path with no spaces, unlike Application Support and most game folders, so that
+    /// Claude Code's sandbox exemption matches the command, and outside the agent's sandbox writes, so that the agent cannot change it
+    public static func toolsFolder(titleID: String) -> URL {
+        FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Caches/org.nxnative.converter/port-tools", isDirectory: true)
+            .appendingPathComponent(titleID, isDirectory: true)
+    }
+
+    /// The launcher's script: it runs the work folder's run/boot.sh with the arguments it is given
+    public static func bootLauncher(workFolder: URL) -> String {
+        "#!/bin/sh\n# Written by nxnative Converter: runs the game's boot.sh, outside the agent's sandbox (the sandbox has no Metal device)\n"
+            + "exec \(PrerequisiteChecker.shellQuote(workFolder.appendingPathComponent("run/boot.sh").path)) \"$@\"\n"
+    }
 }

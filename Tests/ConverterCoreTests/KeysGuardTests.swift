@@ -90,7 +90,8 @@ struct KeysGuardTests {
 
     @Test func settings() throws {
         let guardCommand = "'/Applications/nxnative Converter.app/Contents/MacOS/NXNativeConverter' --keys-guard '/Users/player/.switch/prod.keys'"
-        let tools = KeysGuard.gameToolCommands(worktree: "/Users/player/nxnative-ports/0100ABCD00000000", workFolder: "/Volumes/Games/Super Game/0100ABCD00000000-work")
+        let tools = KeysGuard.gameToolCommands(worktree: "/Users/player/nxnative-ports/0100ABCD00000000",
+                                               bootLauncher: "/Users/player/Library/Caches/org.nxnative.converter/port-tools/0100ABCD00000000/boot.sh")
         let s = KeysGuard.claudeSettings(guardCommand: guardCommand, keyFiles: keys, sandbox: .sandboxed, unsandboxed: tools)
         let o = try #require(try JSONSerialization.jsonObject(with: Data(s.utf8)) as? [String: Any])
         let pre = try #require(((o["hooks"] as? [String: Any])?["PreToolUse"] as? [[String: Any]])?.first)
@@ -115,11 +116,15 @@ struct KeysGuardTests {
         // the game tools run outside it (Metal, sysctl), in each spelling of their paths
         let excluded = try #require(sandbox["excludedCommands"] as? [String])
         #expect(excluded == tools)
-        for command in ["python3 scripts/build_ipa_from_nsp.py *", "dm/host/dmhost *", "'/Volumes/Games/Super Game/0100ABCD00000000-work/run/boot.sh' *",
-                        "\"/Volumes/Games/Super Game/0100ABCD00000000-work/run/boot.sh\" *", "python3 /Users/player/nxnative-ports/0100ABCD00000000/scripts/build_ipa_from_nsp.py *"] {
+        for command in ["python3 scripts/build_ipa_from_nsp.py *", "dm/host/dmhost *",
+                        "/Users/player/Library/Caches/org.nxnative.converter/port-tools/0100ABCD00000000/boot.sh *",
+                        "python3 /Users/player/nxnative-ports/0100ABCD00000000/scripts/build_ipa_from_nsp.py *"] {
             #expect(excluded.contains(command), "\(command)")
         }
         #expect(!excluded.contains { $0.hasPrefix("cat") || $0.hasPrefix("python3 *") || $0 == "*" })
+        // a path with a space never matched: none is listed
+        #expect(!excluded.contains { $0.dropLast(2).contains(" ") && !$0.hasPrefix("python3 ") && !$0.hasPrefix("sysctl -n") })
+        #expect(!KeysGuard.gameToolCommands(worktree: "/Users/p/My Ports/X", bootLauncher: "/b/boot.sh").contains { $0.contains("My Ports") })
     }
 
     @Test func settingsFullAccessOmitsSandbox() throws {

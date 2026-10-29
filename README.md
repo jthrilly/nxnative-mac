@@ -175,7 +175,7 @@ A game with no profile offers:
 - **Open Survey** and **Show Provisional Profile**;
 - **Port with an Agent…**, which a failed conversion offers too.
 
-A port hands the game to Claude Code or Codex. The agent works in a git worktree of the checkout of its own: branch `port/<title ID>`, in
+A port hands the game to Claude Code or Codex, on the model chosen in its start sheet (Claude Code: Opus 5.5 unless Settings › Agents names another). The agent works in a git worktree of the checkout of its own: branch `port/<title ID>`, in
 `nxnative-ports/<title ID>` beside the nxnative folder unless Settings names another folder. Its prompt names:
 
 - the game's files and the survey;
@@ -193,7 +193,9 @@ Claude Code runs in its sandbox, which a run without it stops on:
 - it can reach only GitHub, PyPI, NuGet and the .NET downloads.
 
 The sandbox has no Metal device and no sysctl, so the game's own tools run outside it: the NSP script, the work folder's `run/boot.sh` and the
-Mac host (`dm/host/dmhost`), when the agent runs them as commands of their own. They run with your full access, and the agent can edit them, so the hook
+Mac host (`dm/host/dmhost`), when the agent runs them as commands of their own. boot.sh goes through a launcher the app writes to
+`~/Library/Caches/org.nxnative.converter/port-tools/<title ID>/boot.sh`: Claude Code never matched an exemption whose path has a space, as a game
+folder's usually does. They run with your full access, and the agent can edit them, so the hook
 and the prompt's rules are what keep the key file out of them.
 
 On top of the sandbox, a hook on every tool runs this app's own executable with `--keys-guard`. It blocks any file tool or command that would read the key

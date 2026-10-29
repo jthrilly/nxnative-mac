@@ -115,17 +115,17 @@ public enum KeysGuard {
 
     /// The nxnative tools a sandboxed port runs outside the sandbox: the NSP script, the work folder's boot.sh and the Mac host need the Metal device and sysctl, which
     /// Claude Code's sandbox has no setting for (inside it the host stops at "no Metal device" and the NSP script takes the Mac for an Intel one). Claude Code matches
-    /// the call's text: each spelling of a path (bare, single- or double-quoted) is listed, and a `cd`, a pipe, a redirect or `$(...)` keeps a call sandboxed. These
-    /// run with the user's full access and the agent can edit them, so the keys hook and the prompt's rules are what keep the key file out of them
-    public static func gameToolCommands(worktree: String, workFolder: String) -> [String] {
-        var commands = ["python3 scripts/build_ipa_from_nsp.py *", "dm/host/dmhost *", "./dm/host/dmhost *", "sysctl -n *"]
-        commands += spellings(worktree + "/scripts/build_ipa_from_nsp.py").map { "python3 \($0) *" }
-        commands += spellings(worktree + "/dm/host/dmhost").map { "\($0) *" }
-        commands += spellings(workFolder + "/run/boot.sh").map { "\($0) *" }
+    /// the call's text, and an entry whose path has a space never matched (a game folder such as ~/Games/Nintendo Switch/…): boot.sh is run through the app's
+    /// launcher (PortStore.bootLauncher), at a path with no spaces, and the other entries are relative to the worktree or name it. A `cd`, a pipe, a redirect or
+    /// `$(...)` keeps a call sandboxed. These run with the user's full access and the agent can edit them (not the launcher), so the keys hook and the prompt's
+    /// rules are what keep the key file out of them
+    public static func gameToolCommands(worktree: String, bootLauncher: String) -> [String] {
+        var commands = ["python3 scripts/build_ipa_from_nsp.py *", "dm/host/dmhost *", "./dm/host/dmhost *", "sysctl -n *", "\(bootLauncher) *"]
+        if !worktree.contains(" ") {
+            commands += ["python3 \(worktree)/scripts/build_ipa_from_nsp.py *", "\(worktree)/dm/host/dmhost *"]
+        }
         return orderedUnique(commands)
     }
-
-    static func spellings(_ path: String) -> [String] { [path, PrerequisiteChecker.shellQuote(path), "\"" + path + "\""] }
 
     /// Beyond the worktree, the game folder and Claude Code's own temporary folder: the game apps' log and save folders, and the caches the build tools write. Without the
     /// per-user cache and temporary folders clang's module cache and xcrun fail, and without NuGet's and dotnet's folders nx_extract does not build

@@ -8,13 +8,14 @@ public struct PortContext: Sendable, Equatable {
     public var workspace: URL; public var branch: String; public var survey: URL?; public var provisionalProfile: URL?
     public var lastLogs: URL?; public var lastError: String?; public var agent: AgentKind; public var sandboxed: Bool
     public var lastErrorSource: String?   // which conversion the error is from ("the conversion of <date> with nxnative <commit>")
+    public var bootLauncher: URL?         // the app's launcher of the work folder's run/boot.sh, outside the sandbox (PortStore.bootLauncher)
 
     public init(titleID: String, gameName: String, versions: [Int], nspFolder: URL, keysFile: URL, workspace: URL, branch: String, survey: URL? = nil,
                 provisionalProfile: URL? = nil, lastLogs: URL? = nil, lastError: String? = nil, lastErrorSource: String? = nil, agent: AgentKind,
-                sandboxed: Bool = false) {
+                sandboxed: Bool = false, bootLauncher: URL? = nil) {
         self.titleID = titleID; self.gameName = gameName; self.versions = versions; self.nspFolder = nspFolder; self.keysFile = keysFile; self.workspace = workspace
         self.branch = branch; self.survey = survey; self.provisionalProfile = provisionalProfile; self.lastLogs = lastLogs; self.lastError = lastError; self.agent = agent
-        self.sandboxed = sandboxed; self.lastErrorSource = lastErrorSource
+        self.sandboxed = sandboxed; self.lastErrorSource = lastErrorSource; self.bootLauncher = bootLauncher
     }
 }
 
@@ -78,10 +79,11 @@ public enum PortPrompt {
         var lines = ["Keys: \(c.keysFile.path). Pass this path to the repository's tools (-k). Never read, print, copy or upload the key file or any key value."]
         switch (c.agent, c.sandboxed) {
         case (.claudeCode, true):
-            let boot = quote(ConversionCommand.workFolder(folder: c.nspFolder, titleID: c.titleID).appendingPathComponent("run/boot.sh").path)
+            let work = ConversionCommand.workFolder(folder: c.nspFolder, titleID: c.titleID).appendingPathComponent("run/boot.sh").path
+            let boot = c.bootLauncher.map(\.path) ?? quote(work)
             lines += ["Your commands run in a sandbox in which the key file cannot be read, and a guard catches common ways to read it; do not try to work around either.",
                       "The sandbox has no Metal device and no sysctl, so these run outside it: `python3 scripts/build_ipa_from_nsp.py …` (from this worktree), `\(boot) …`",
-                      "and `dm/host/dmhost …`. Run each as a command of its own in exactly that form: a `cd`, a pipe, a redirect, `$(…)`, `&&` with another command,",
+                      "(it runs \(quote(work)) with the same arguments: start the game with it, never with boot.sh's own path) and `dm/host/dmhost …`. Run each as a command of its own in exactly that form: a `cd`, a pipe, a redirect, `$(…)`, `&&` with another command,",
                       "a wrapper or a variable assignment in front keeps it in the sandbox, where the host stops at \"no Metal device\" and the NSP script",
                       "takes this Mac for an Intel one. Pass settings to boot.sh as its VAR=value arguments, limit a run with its seconds argument, and read the output from its log files afterwards.",
                       "These tools run with the user's full access: the NSP script may use the keys (-k), and you must never change any of them to read, print or copy the key",

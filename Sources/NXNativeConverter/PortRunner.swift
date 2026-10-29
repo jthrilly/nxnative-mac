@@ -398,7 +398,12 @@ extension AppModel {
         let claudeSettings = runFolder.appendingPathComponent("claude-settings.json")
         let promptFile = runFolder.appendingPathComponent("\(runID.uuidString)-prompt.txt")
         try AgentReport.jsonSchema.write(to: schema, atomically: true, encoding: .utf8)
-        let gameTools = KeysGuard.gameToolCommands(worktree: ws.path.path, workFolder: ConversionCommand.workFolder(folder: request.folder, titleID: titleID).path)
+        // boot.sh through a launcher at a path with no spaces: an exemption whose path has a space never matches
+        let launcher = PortStore.toolsFolder(titleID: titleID).appendingPathComponent("boot.sh")
+        try fm.createDirectory(at: launcher.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try PortStore.bootLauncher(workFolder: ConversionCommand.workFolder(folder: request.folder, titleID: titleID)).write(to: launcher, atomically: true, encoding: .utf8)
+        try fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: launcher.path)
+        let gameTools = KeysGuard.gameToolCommands(worktree: ws.path.path, bootLauncher: launcher.path)
         try KeysGuard.claudeSettings(guardCommand: guardCommand, keyFiles: [keys.path], sandbox: options.claudeSandbox, unsandboxed: gameTools)
             .write(to: claudeSettings, atomically: true, encoding: .utf8)
 
@@ -416,7 +421,7 @@ extension AppModel {
             survey: fm.fileExists(atPath: survey.path) ? survey : nil,
             provisionalProfile: fm.fileExists(atPath: provisional.appendingPathComponent("game.tsv").path) ? provisional : nil,
             lastLogs: fm.fileExists(atPath: logs.path) ? logs : nil, lastError: lastError, lastErrorSource: failure.map(PortRules.failureSource), agent: options.kind,
-            sandboxed: options.kind == .claudeCode && options.claudeSandbox == .sandboxed)
+            sandboxed: options.kind == .claudeCode && options.claudeSandbox == .sandboxed, bootLauncher: launcher)
         let instructions = options.instructions.trimmingCharacters(in: .whitespacesAndNewlines)
         let prompt = continuing ? PortPrompt.continuation(context, previous: port.latestReport, instructions: instructions)
             : PortPrompt.initial(context, instructions: instructions)
