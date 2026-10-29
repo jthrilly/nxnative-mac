@@ -186,14 +186,15 @@ struct AppCommands: Commands {
     @ViewBuilder private var portMenu: some View {
         Button("Show Running Agent") {
             show()
-            if let run = model.activePortRun {
+            // the newest agent, or from a port whose agent is shown the next one, so that each running agent can be reached from here
+            if let run = model.nextRunToShow {
                 model.page = .ports
                 if model.selectedPortID != run.titleID { model.selectedRunID = nil }
                 model.selectedPortID = run.titleID
                 portTab = .transcript
             }
         }
-        .disabled(model.activePortRun == nil)
+        .disabled(model.activePortRuns.isEmpty)
         Divider()
         Button(PortAction.continueRun.title) {
             show()
@@ -201,9 +202,9 @@ struct AppCommands: Commands {
         }
         .keyboardShortcut(onPorts ? KeyboardShortcut("r") : nil)
         .disabled(!(model.shownPort.map(model.canStartRun) ?? false))
-        Button(PortAction.stop.title) { show(); model.stopPortRun() }
+        Button(PortAction.stop.title) { show(); model.stopPortRun(model.shownPortID) }
             .keyboardShortcut(onPorts ? KeyboardShortcut(".") : nil)
-            .disabled(!model.canStopPortRun)
+            .disabled(!model.canStopPortRun(model.shownPortID))
         Divider()
         portItem(.openInTerminal)
         portItem(.showChanges)

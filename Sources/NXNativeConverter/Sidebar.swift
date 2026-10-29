@@ -1,11 +1,26 @@
 // The sidebar: the five pages in one list, with the Convert queue's games and the ports nested under their pages, each row with its status in a
-// fixed slot; the badges of what waits (queued games, incoming commits, failed checks); the rows' context menus and the Delete key
+// fixed slot; the badges of what waits (queued games, incoming commits, failed checks); the rows' context menus and the Delete key. A row keeps one shape
+// for its identity: a page that gains or loses its nested rows is a new row (the outline view draws a leaf turned group, or a group turned leaf, over its
+// neighbours), and a port keeps its row from the agent preparing it to its record
 import ConverterCore
 import SwiftUI
 
 /// What the sidebar selects: a page, or a game or a port on its page. It maps onto the model's page and its selected job and port
 private enum SidebarItem: Hashable {
     case page(Page), job(UUID), port(String)
+}
+
+/// A page's row, and whether it is a group with rows nested under it
+private struct PageRow: Hashable {
+    let page: Page
+    let grouped: Bool
+}
+
+/// A port's row: its record, the agent run on it, or both (an agent preparing a new port has no record yet)
+private struct PortSidebarEntry: Identifiable {
+    let port: PortRecord?
+    let run: PortRun?
+    var id: String { port?.titleID ?? run?.titleID ?? "" }
 }
 
 struct Sidebar: View {
@@ -15,15 +30,26 @@ struct Sidebar: View {
 
     var body: some View {
         List(selection: Binding(get: { current }, set: select)) {
-            ForEach(Page.allCases) { page in row(page) }
+            ForEach(pageRows, id: \.self) { row($0) }
         }
         .listStyle(.sidebar)
         .onDeleteCommand(perform: delete)
     }
 
-    @ViewBuilder private func row(_ page: Page) -> some View {
+    private var pageRows: [PageRow] {
+        Page.allCases.map { page in
+            switch page {
+            case .convert: PageRow(page: page, grouped: !model.jobs.isEmpty)
+            case .ports: PageRow(page: page, grouped: !portEntries.isEmpty)
+            default: PageRow(page: page, grouped: false)
+            }
+        }
+    }
+
+    @ViewBuilder private func row(_ row: PageRow) -> some View {
+        let page = row.page
         switch page {
-        case .convert where !model.jobs.isEmpty:
+        case .convert where row.grouped:
             DisclosureGroup(isExpanded: $convertExpanded) {
                 ForEach(model.jobs) { job in
                     JobSidebarRow(job: job)
@@ -33,15 +59,12 @@ struct Sidebar: View {
             } label: {
                 pageLabel(page)
             }
-        case .ports where preparingRun != nil || !model.ports.isEmpty:
+        case .ports where row.grouped:
             DisclosureGroup(isExpanded: $portsExpanded) {
-                if let run = preparingRun {
-                    PreparingPortRow(run: run).tag(SidebarItem.port(run.titleID))
-                }
-                ForEach(model.ports.reversed()) { port in
-                    PortSidebarRow(port: port)
-                        .tag(SidebarItem.port(port.titleID))
-                        .contextMenu { PortActionMenuItems(port: port) }
+                ForEach(portEntries) { entry in
+                    PortSidebarRow(entry: entry)
+                        .tag(SidebarItem.port(entry.id))
+                        .contextMenu { if let port = entry.port { PortActionMenuItems(port: port) } }
                 }
             } label: {
                 pageLabel(page)
@@ -67,8 +90,11 @@ struct Sidebar: View {
         }
     }
 
-    /// The agent run whose port has no record yet
-    private var preparingRun: PortRun? { model.activePortRun.flatMap { model.port($0.titleID) == nil ? $0 : nil } }
+    /// The ports, newest first: the agents preparing ports that have no record yet, then the records (a new record is the newest, so its row stays put)
+    private var portEntries: [PortSidebarEntry] {
+        let preparing = model.activePortRuns.reversed().filter { model.port($0.titleID) == nil }.map { PortSidebarEntry(port: nil, run: $0) }
+        return preparing + model.ports.reversed().map { PortSidebarEntry(port: $0, run: model.activeRun($0.titleID)) }
+    }
 
     // A collapsed group shows its page as selected, as in Finder and Xcode
     private var current: SidebarItem? {
@@ -170,59 +196,41 @@ private struct JobAccessory: View {
 }
 
 private struct PortSidebarRow: View {
-    @Environment(AppModel.self) private var model
-    let port: PortRecord
+    let entry: PortSidebarEntry
 
     var body: some View {
         HStack(spacing: Space.xs) {
             Label {
-                RowLines(title: port.gameName, detail: detail)
+                RowLines(title: name, detail: detail)
             } icon: {
-                GameArtwork(.gameFolder(port.folderURL, titleID: port.titleID), name: port.gameName, size: 24)
+                GameArtwork(.gameFolder(entry.port?.folderURL ?? entry.run?.folder ?? URL(fileURLWithPath: "/"), titleID: entry.id), name: name, size: 24)
             }
             Spacer(minLength: 0)
             RowAccessory {
-                if model.isRunning(port) {
+                if entry.run != nil {
                     ProgressView().controlSize(.small).accessibilityLabel("Agent running")
-                } else if let run = port.runs.last {
+                } else if let run = entry.port?.runs.last {
                     StatusSymbol(name: run.status.symbol, color: run.status.tone.glyph, label: run.status.title)
                 }
             }
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(port.gameName)
+        .accessibilityLabel(name)
         .accessibilityValue(spokenValue)
     }
 
+    private var name: String { entry.port?.gameName ?? entry.run?.gameName ?? entry.id }
+
     private var spokenValue: String {
-        if model.isRunning(port) { return "Agent running, " + detail }
-        guard let run = port.runs.last else { return detail }
+        if entry.run != nil { return "Agent running, " + detail }
+        guard let run = entry.port?.runs.last else { return detail }
         return run.status.title + ", " + detail
     }
 
     private var detail: String {
-        if model.isRunning(port), let run = model.activePortRun { return run.phase }
-        let parts = [port.runs.last?.kind.displayName, port.latestReport?.milestone.title].compactMap { $0 }
-        return parts.isEmpty ? port.titleID : parts.joined(separator: " · ")
-    }
-}
-
-private struct PreparingPortRow: View {
-    let run: PortRun
-
-    var body: some View {
-        HStack(spacing: Space.xs) {
-            Label {
-                RowLines(title: run.gameName, detail: run.phase)
-            } icon: {
-                GameArtwork(.gameFolder(run.folder, titleID: run.titleID), name: run.gameName, size: 24)
-            }
-            Spacer(minLength: 0)
-            RowAccessory { ProgressView().controlSize(.small).accessibilityLabel("Agent running") }
-        }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(run.gameName)
-        .accessibilityValue(run.phase)
+        if let run = entry.run { return run.phase }
+        let parts = [entry.port?.runs.last?.kind.displayName, entry.port?.latestReport?.milestone.title].compactMap { $0 }
+        return parts.isEmpty ? entry.id : parts.joined(separator: " · ")
     }
 }
 

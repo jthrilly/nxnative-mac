@@ -1,5 +1,5 @@
-// What may run on a port at the same time. One agent runs at a time, and a port's worktree has one user at a time: its agent (in the app, or in a Terminal
-// session), a git operation on it (checkpoint, rebase, diff, removal) or a conversion built from it. A conversion of the game's folder from the nxnative
+// What may run on a port at the same time. Agents run side by side on different games, one per port (and per game folder), and a port's worktree has one
+// user at a time: its agent (in the app, or in a Terminal session), a git operation on it (checkpoint, rebase, diff, removal) or a conversion built from it. A conversion of the game's folder from the nxnative
 // checkout shares the folder and not the worktree, so it keeps only agent runs out. A Terminal session is open while the .command script's shell lives:
 // the script writes its PID into a marker file and removes it when it exits (a stale marker names a process that is gone)
 import Darwin
@@ -19,7 +19,7 @@ public enum PortBlock: Sendable, Equatable {
 
     public var message: String {
         switch self {
-        case let .agentRunning(agent, game): return "\(agent) is working on \(game). One agent runs at a time: stop it or wait until it has finished."
+        case let .agentRunning(agent, game): return "\(agent) is working on \(game). A game has one agent at a time: stop it or wait until it has finished."
         case let .operation(title): return "\(title.replacingOccurrences(of: "…", with: "")) on this port's worktree: wait until it has finished."
         case let .converting(name): return "\(name) is being converted from this game folder or worktree: wait until the conversion has finished."
         case .terminalSession: return "An agent session is open in Terminal in this port's worktree: end it there first."
@@ -29,7 +29,7 @@ public enum PortBlock: Sendable, Equatable {
 
 /// What is running now, as far as one port is concerned
 public struct PortSituation: Sendable {
-    public var agent: (titleID: String, name: String, game: String)?   // the agent run in the app
+    public var agent: (titleID: String, name: String, game: String)?   // the agent run in the app on this port, or on its game folder
     public var operation: String?                                      // the git operation on this port's worktree
     public var conversion: (name: String, folder: String, repository: String?)?   // the conversion running now
     public var terminalSession: Bool

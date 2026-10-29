@@ -181,6 +181,7 @@ A port hands the game to Claude Code or Codex. The agent works in a git worktree
 
 It also points the agent at nxnative's `AGENTS.md` and `docs/agents`. The agent doesn't commit, and closes with a JSON report that the Ports page shows: the
 milestone it reached, what it changed, the next steps and anything blocking it. Build App on that page converts the game from the port's worktree.
+Agents can port several games at the same time, each in its own worktree; a game has one agent at a time.
 
 Claude Code runs in its sandbox, which a run without it stops on:
 

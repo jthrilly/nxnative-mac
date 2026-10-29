@@ -85,7 +85,7 @@ private struct KeepsWindowOpener: ViewModifier {
 
     private var quitPrompt: QuitPrompt? {
         QuitRules.prompt(conversion: model.activeJob?.name, installing: model.activeJob?.state == .installing,
-                         agent: model.activePortRun.map { (name: $0.kind.displayName, game: $0.gameName) },
+                         agents: model.activePortRuns.map { (name: $0.kind.displayName, game: $0.gameName) },
                          operations: [model.console.title].compactMap { $0 } + model.portOperations.values.sorted())
     }
 

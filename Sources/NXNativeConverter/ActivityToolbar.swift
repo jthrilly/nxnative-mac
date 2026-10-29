@@ -1,18 +1,23 @@
-// The running work in the toolbar of every page: the conversion, the agent run and the console's operation each show as a button with its progress
-// while their own page is not the one shown, and the button goes to that page
+// The running work in the toolbar of every page: the conversion, the agent runs (the newest, with how many others) and the console's operation each
+// show as a button with its progress while their own page is not the one shown, and the button goes to that page
 import ConverterCore
 import SwiftUI
 
 struct ActivityToolbar: ToolbarContent {
     @Environment(AppModel.self) private var model
 
+    /// The agent runs whose port is not the one shown, oldest first: the newest shows as the button, with the number of the others
+    @MainActor private var hiddenRuns: [PortRun] {
+        model.activePortRuns.filter { !(model.shownPage == .ports && model.shownPortID == $0.titleID) }
+    }
+
     var body: some ToolbarContent {
         if let job = model.activeJob, !(model.shownPage == .convert && model.shownJob?.id == job.id) {
             ToolbarItem(placement: .principal) { ConversionActivity(job: job) }
                 .visibilityPriority(.high)
         }
-        if let run = model.activePortRun, !(model.shownPage == .ports && model.shownPortID == run.titleID) {
-            ToolbarItem(placement: .principal) { AgentActivity(run: run) }
+        if let run = hiddenRuns.last {
+            ToolbarItem(placement: .principal) { AgentActivity(run: run, others: hiddenRuns.count - 1) }
                 .visibilityPriority(.high)
         }
         if let operation = ConsoleOperation(model), model.shownPage != operation.page {
@@ -59,6 +64,7 @@ private struct AgentActivity: View {
     @Environment(AppModel.self) private var model
     @AppStorage(PortTab.storageKey) private var portTab = PortTab.overview
     let run: PortRun
+    let others: Int
 
     var body: some View {
         Button {
@@ -68,14 +74,17 @@ private struct AgentActivity: View {
             portTab = .transcript
         } label: {
             Label {
-                Text("\(run.kind.displayName): \(run.gameName)").lineLimit(1).truncationMode(.tail).frame(maxWidth: 260)
+                HStack(spacing: 0) {
+                    Text("\(run.kind.displayName): \(run.gameName)").lineLimit(1).truncationMode(.tail).frame(maxWidth: 260, alignment: .leading)
+                    if others > 0 { Text(" +\(others)").monospacedDigit() }
+                }
             } icon: {
                 ActivityRing(fraction: nil)
             }
         }
         .labelStyle(.titleAndIcon)
         .help(run.phase)
-        .accessibilityLabel("\(run.kind.displayName) is porting \(run.gameName)")
+        .accessibilityLabel("\(run.kind.displayName) is porting \(run.gameName)" + (others > 0 ? ", and \(others) other agent\(others == 1 ? "" : "s")" : ""))
         .accessibilityValue(run.phase)
         .accessibilityHint("Shows the agent's transcript")
     }

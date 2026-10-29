@@ -57,10 +57,10 @@ struct PortRunsTable: View {
         Binding(get: { model.shownRun(of: port)?.id }, set: { model.selectedRunID = $0 })
     }
 
-    private func isLive(_ run: AgentRunRecord) -> Bool { model.isRunning(port) && model.activePortRun?.id == run.id }
+    private func isLive(_ run: AgentRunRecord) -> Bool { model.isActiveRun(run.id) }
 
     private func statusChip(_ run: AgentRunRecord) -> some View {
-        let status = model.activePortRun?.id == run.id ? AgentRunStatus.running : run.status
+        let status = model.isActiveRun(run.id) ? AgentRunStatus.running : run.status
         return StatusChip(status.title, symbol: status.symbol, tone: status.tone)
             .accessibilityLabel("Status: \(status.title)")
     }

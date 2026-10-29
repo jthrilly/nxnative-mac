@@ -1,7 +1,8 @@
 // AppModel: the app's state (settings, the login shell's environment, the nxnative checkout, prerequisite checks, the conversion queue, the library of
 // what was built, the ports agents attempt) and the operations on it. One conversion runs at a time, and never together with a git operation or a Setup
-// fix (both use the console); one agent run at a time, and never together with a conversion of the same game folder (PortRules). The launch-time fetch runs
-// in the background and gives way to any git operation; quitting holds the queue and waits for what must not stop halfway (an install)
+// fix (both use the console); agents run side by side on different games, one per port, and never together with a conversion of the same game folder
+// (PortRules). The launch-time fetch runs in the background and gives way to any git operation; quitting holds the queue and waits for what must not stop
+// halfway (an install)
 import AppKit
 import ConverterCore
 import Foundation
@@ -82,7 +83,7 @@ struct LibraryEntry: Identifiable {
     var portStatuses: [String: PortWorkspaceStatus] = [:]   // by title ID
     var selectedPortID: String?
     var selectedRunID: UUID?
-    var activePortRun: PortRun?
+    var activePortRuns: [PortRun] = []                       // the agent runs in progress, one per port at most, in the order they started
     var finishedRuns: [PortRun] = []                         // the last few runs of this session, newest first
     var portOperations: [String: String] = [:]                // title ID → the git operation running on its worktree
     var portSheet: PortSheetRequest?
@@ -90,7 +91,7 @@ struct LibraryEntry: Identifiable {
     var settingsSheet: LibraryEntry?   // Game Settings of a game app
     var portToRemove: PortRecord?                            // Remove Port… asks first
     var terminalSessions: Set<String> = []                   // title IDs of the ports with an agent session open in Terminal
-    @ObservationIgnored var portRunTask: Task<Void, Never>?
+    @ObservationIgnored var portRunTasks: [UUID: Task<Void, Never>] = [:]   // by run ID
     @ObservationIgnored private var installedApps: [InstalledGameApp] = []
     @ObservationIgnored private var preparedProjects: Set<String> = []   // the Xcode projects and workspaces of the records that exist
     @ObservationIgnored private var launched = false
@@ -132,7 +133,7 @@ struct LibraryEntry: Identifiable {
         if isQuitting { return "nxnative Converter is quitting." }
         if let active = activeJob { return "\(active.name) is being converted: one conversion runs at a time." }
         if let title = console.title { return "\u{201C}\(title)\u{201D} is running: conversions wait until it has finished." }
-        if let run = activePortRun, run.folder.path == job.folder.path { return "\(run.kind.displayName) is porting this game folder." }
+        if let run = activePortRuns.first(where: { $0.folder.path == job.folder.path }) { return "\(run.kind.displayName) is porting this game folder." }
         if let repo = job.repository, let port = ports.first(where: { PortRules.samePath($0.workspace, repo.path) }),
            let block = PortRules.buildBlock(port, situation(for: port)) { return block.message }
         return nil

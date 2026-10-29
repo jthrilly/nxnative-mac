@@ -1,8 +1,8 @@
 // Ports: an AI coding agent (Claude Code or Codex) attempts the port of a game nxnative has no profile for, following the repository's porting guide in a
 // git worktree of its own. A run is unattended in the app (its JSONL output written raw to the run's transcript file on a background queue and folded
-// into an AgentTranscript in batches; a time limit; a checkpoint commit afterwards) or interactive in Terminal (recorded, not tracked). One agent runs
-// at a time, and never together with a conversion of the same game folder; a port's worktree has one user at a time (PortRules). Also the port's git
-// operations (checkpoint, rebase, diff, removal)
+// into an AgentTranscript in batches; a time limit; a checkpoint commit afterwards) or interactive in Terminal (recorded, not tracked). Agents run side by
+// side on different games, one per port, and never together with a conversion of the same game folder; a port's worktree has one user at a time
+// (PortRules). Also the port's git operations (checkpoint, rebase, diff, removal)
 import AppKit
 import ConverterCore
 import Foundation
@@ -50,7 +50,7 @@ private enum AgentChunk: Sendable {
     case stderr(String, Date)
 }
 
-/// The agent run in progress (and, for a while, the ones that finished in this session: their transcripts hold the stderr lines and notes too)
+/// An agent run in progress (and, for a while, the ones that finished in this session: their transcripts hold the stderr lines and notes too)
 @MainActor @Observable final class PortRun: Identifiable {
     let id: UUID                 // the AgentRunRecord's
     let titleID: String
@@ -133,29 +133,34 @@ extension AppModel {
 
     var selectedPort: PortRecord? { ports.first { $0.titleID == selectedPortID } }
     func port(_ titleID: String) -> PortRecord? { ports.first { $0.titleID == titleID } }
-    var canStopPortRun: Bool { activePortRun?.canStop ?? false }
-    func isRunning(_ port: PortRecord) -> Bool { activePortRun?.titleID == port.titleID }
+    /// The agent run in progress on a port (or on a title ID whose port has no record yet)
+    func activeRun(_ titleID: String?) -> PortRun? { activePortRuns.first { $0.titleID == titleID } }
+    func isActiveRun(_ id: UUID) -> Bool { activePortRuns.contains { $0.id == id } }
+    func canStopPortRun(_ titleID: String?) -> Bool { activeRun(titleID)?.canStop ?? false }
+    func isRunning(_ port: PortRecord) -> Bool { activeRun(port.titleID) != nil }
 
-    /// What runs now, as far as this port is concerned
+    /// What runs now, as far as this port is concerned: the agent is the one on this port, or on another port of the same game folder
     func situation(for port: PortRecord) -> PortSituation {
-        PortSituation(agent: activePortRun.map { (titleID: $0.titleID, name: $0.kind.displayName, game: $0.gameName) }, operation: portOperations[port.titleID],
+        let agent = activeRun(port.titleID) ?? activePortRuns.first { PortRules.samePath($0.folder.path, port.folder) }
+        return PortSituation(agent: agent.map { (titleID: $0.titleID, name: $0.kind.displayName, game: $0.gameName) }, operation: portOperations[port.titleID],
                       conversion: activeJob.map { (name: $0.name, folder: $0.folder.path, repository: $0.repository?.path) },
                       terminalSession: terminalSessions.contains(port.titleID))
     }
 
-    /// Why an agent run of this port cannot start now (another agent runs, something else uses its worktree, its folder is being converted), nil when it can
+    /// Why an agent run of this port cannot start now (an agent runs on it or its folder, something else uses its worktree, its folder is being converted),
+    /// nil when it can
     func runBlock(_ port: PortRecord) -> PortBlock? { PortRules.runBlock(port, situation(for: port)) }
     func canStartRun(_ port: PortRecord) -> Bool { isReady && !isQuitting && runBlock(port) == nil }
 
     /// Why "Port with an Agent…" (or "Continue Port…") on a game cannot start now, nil when it can: its port's run block, or with no port yet, the app
-    /// quitting or another agent running
+    /// quitting or an agent preparing it
     func portBlockReason(titleID: String?) -> String? {
         if isQuitting { return "nxnative Converter is quitting." }
         if let port = titleID.flatMap(port) {
             if !isReady { return "The shell environment is not ready yet." }
             return runBlock(port)?.message
         }
-        return activePortRun.map { PortBlock.agentRunning(agent: $0.kind.displayName, game: $0.gameName).message }
+        return activeRun(titleID).map { PortBlock.agentRunning(agent: $0.kind.displayName, game: $0.gameName).message }
     }
 
     /// A git operation on the port's worktree can run: no agent, other operation or conversion uses it
@@ -208,8 +213,7 @@ extension AppModel {
 
     func liveRun(_ id: UUID?) -> PortRun? {
         guard let id else { return nil }
-        if activePortRun?.id == id { return activePortRun }
-        return finishedRuns.first { $0.id == id }
+        return activePortRuns.first { $0.id == id } ?? finishedRuns.first { $0.id == id }
     }
 
     // MARK: Records
@@ -311,7 +315,7 @@ extension AppModel {
     func startPort(_ request: PortSheetRequest, options: PortRunOptions) {
         let fm = FileManager.default
         guard let env = environment, !isQuitting else { return }
-        // a new port has no worktree yet: only another agent, an operation on its title ID or a conversion of its folder can be in the way
+        // a new port has no worktree yet: only an agent on its title ID or folder, an operation on its title ID or a conversion of its folder can be in the way
         let probe = port(request.titleID) ?? PortRecord(titleID: request.titleID, gameName: request.gameName, folder: request.folder.path, workspace: "", branch: "",
                                                         baseCommit: "", createdAt: Date())
         if let block = runBlock(probe) {
@@ -346,16 +350,16 @@ extension AppModel {
         }
         let run = PortRun(id: runID, titleID: request.titleID, gameName: request.gameName, folder: request.folder, kind: options.kind,
                           transcriptFile: runFolder.appendingPathComponent("\(runID.uuidString).jsonl"))
-        activePortRun = run
+        activePortRuns.append(run)
         selectedPortID = request.titleID
         selectedRunID = runID
         page = .ports
-        portRunTask = Task {
+        portRunTasks[runID] = Task {
             await runUnattended(run, request, options: options, runFolder: runFolder, executable: executable, keys: keys, guardCommand: guardCommand, env: env)
             finishedRuns.insert(run, at: 0)
             if finishedRuns.count > 4 { finishedRuns.removeLast(finishedRuns.count - 4) }
-            activePortRun = nil
-            portRunTask = nil
+            activePortRuns.removeAll { $0.id == runID }
+            portRunTasks[runID] = nil
             startNextIfPossible()
         }
     }
@@ -584,27 +588,33 @@ extension AppModel {
 
     static func hours(_ value: Double) -> String { value.formatted(.number.precision(.fractionLength(0...1))) + " h" }
 
-    func stopPortRun() {
-        guard let run = activePortRun, run.canStop else { return }
+    func stopPortRun(_ titleID: String?) {
+        guard let run = activeRun(titleID), run.canStop else { return }
         run.requestStop()
         run.note("Stopping…")
         if let process = run.process { Task { await process.cancel() } }
     }
 
-    /// Before quitting: stop the agent and wait for its run to end, checkpoint included (at most ~45 s)
+    /// Before quitting: stop the agents and wait for their runs to end, checkpoints included (at most ~45 s, all of them together)
     func stopPortForQuit() async {
-        guard let run = activePortRun, let task = portRunTask else { return }
-        run.requestStop()
-        if let process = run.process {
+        let runs = activePortRuns, tasks = Array(portRunTasks.values)
+        guard !runs.isEmpty else { return }
+        for run in runs { run.requestStop() }
+        let processes = runs.compactMap(\.process)
+        if !processes.isEmpty {
             await withTaskGroup(of: Void.self) { group in
-                group.addTask { await process.cancel(grace: 5) }
+                group.addTask {
+                    await withTaskGroup(of: Void.self) { all in
+                        for process in processes { all.addTask { await process.cancel(grace: 5) } }
+                    }
+                }
                 group.addTask { try? await Task.sleep(for: .seconds(15)) }
                 await group.next()
                 group.cancelAll()
             }
         }
         await withTaskGroup(of: Void.self) { group in
-            group.addTask { await task.value }
+            group.addTask { for task in tasks { await task.value } }
             group.addTask { try? await Task.sleep(for: .seconds(30)) }
             await group.next()
             group.cancelAll()

@@ -8,15 +8,18 @@ public struct QuitPrompt: Sendable, Equatable {
 
 public enum QuitRules {
     /// nil when nothing runs; operations are the git operations and fixes running now (their titles)
-    public static func prompt(conversion: String?, installing: Bool, agent: (name: String, game: String)?, operations: [String]) -> QuitPrompt? {
+    public static func prompt(conversion: String?, installing: Bool, agents: [(name: String, game: String)], operations: [String]) -> QuitPrompt? {
         var stops: [String] = [], notes: [String] = []
         if let conversion, !installing {
             stops.append("converting \(conversion)")
             notes.append("The conversion stops; you can start it again later.")
         }
-        if let agent {
+        if let agent = agents.first, agents.count == 1 {
             stops.append("the agent porting \(agent.game)")
             notes.append("\(agent.name) stops, and its work is saved as a checkpoint of its worktree first; you can continue the port later.")
+        } else if !agents.isEmpty {
+            stops.append("the \(agents.count) agents porting \(agents.map { $0.game }.joined(separator: ", "))")
+            notes.append("The agents stop, and their work is saved as a checkpoint of each worktree first; you can continue the ports later.")
         }
         let titles = operations.map { "\u{201C}\($0.replacingOccurrences(of: "…", with: ""))\u{201D}" }
         if !titles.isEmpty {

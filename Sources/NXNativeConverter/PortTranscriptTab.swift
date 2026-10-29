@@ -86,7 +86,7 @@ private struct PortRunPicker: View {
     }
 
     private func title(_ run: AgentRunRecord) -> String {
-        let status = model.activePortRun?.id == run.id ? AgentRunStatus.running : run.status
+        let status = model.isActiveRun(run.id) ? AgentRunStatus.running : run.status
         return "\(run.startedAt.formatted(date: .abbreviated, time: .shortened)) · \(status.title)"
     }
 }

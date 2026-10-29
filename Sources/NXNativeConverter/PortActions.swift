@@ -46,7 +46,7 @@ enum PortAction: Hashable {
     @MainActor func isEnabled(for port: PortRecord, in model: AppModel, files: Set<URL>) -> Bool {
         switch self {
         case .continueRun, .openInTerminal: model.canStartRun(port)
-        case .stop: model.canStopPortRun && model.isRunning(port)
+        case .stop: model.canStopPortRun(port.titleID)
         case .showChanges: model.portOperations[port.titleID] == nil
         case .saveCheckpoint, .rebase, .remove: model.canOperateOnPort(port)
         case .buildApp: model.canBuildApp(port)
@@ -80,7 +80,7 @@ enum PortAction: Hashable {
     @MainActor func perform(on port: PortRecord, in model: AppModel, window: WindowState) {
         switch self {
         case .continueRun: model.continuePort(port)
-        case .stop: model.stopPortRun()
+        case .stop: model.stopPortRun(port.titleID)
         case .openInTerminal: model.openPortInTerminal(port)
         case .showChanges: Task { await model.showChanges(port) }
         case .saveCheckpoint: Task { await model.saveCheckpoint(port) }
@@ -149,10 +149,16 @@ struct PortActionMenuItems: View {
 }
 
 extension AppModel {
-    /// The port the Ports page shows (a title ID): the selected one, else the running agent's, else the newest, the top row of the sidebar
+    /// Show Running Agent: the agent after the shown port's one (wrapping), or the newest when the shown port has none
+    var nextRunToShow: PortRun? {
+        guard let i = activePortRuns.firstIndex(where: { shownPage == .ports && $0.titleID == shownPortID }) else { return activePortRuns.last }
+        return activePortRuns[(i + 1) % activePortRuns.count]
+    }
+
+    /// The port the Ports page shows (a title ID): the selected one, else the newest running agent's, else the newest, the top row of the sidebar
     var shownPortID: String? {
-        if let id = selectedPortID, port(id) != nil || activePortRun?.titleID == id { return id }
-        return activePortRun?.titleID ?? ports.last?.titleID
+        if let id = selectedPortID, port(id) != nil || activeRun(id) != nil { return id }
+        return activePortRuns.last?.titleID ?? ports.last?.titleID
     }
 
     /// The record of the port shown; nil while the running agent prepares a port that has no record yet
@@ -167,7 +173,7 @@ extension AppModel {
     /// The run the transcript shows: the one chosen in the table, else the running one, else the newest
     func shownRun(of port: PortRecord) -> AgentRunRecord? {
         if let id = selectedRunID, let run = port.runs.first(where: { $0.id == id }) { return run }
-        if isRunning(port), let id = activePortRun?.id, let run = port.runs.first(where: { $0.id == id }) { return run }
+        if let id = activeRun(port.titleID)?.id, let run = port.runs.first(where: { $0.id == id }) { return run }
         return port.runs.last
     }
 }

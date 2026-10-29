@@ -22,7 +22,7 @@ struct PortPage: View {
     @ViewBuilder private var state: some View {
         if let port = model.shownPort {
             PortDetailView(port: port).id(port.titleID)
-        } else if let run = model.activePortRun, run.titleID == model.shownPortID {
+        } else if let run = model.activeRun(model.shownPortID) {
             PortPreparingView(run: run)
         } else {
             PortsEmptyView()
@@ -92,8 +92,8 @@ private struct PortPreparingView: View {
         .navigationSubtitle("\(run.kind.displayName) is preparing")
         .toolbar {
             ToolbarItem {
-                Button(PortAction.stop.title, systemImage: PortAction.stop.symbol) { model.stopPortRun() }
-                    .disabled(!model.canStopPortRun)
+                Button(PortAction.stop.title, systemImage: PortAction.stop.symbol) { model.stopPortRun(run.titleID) }
+                    .disabled(!model.canStopPortRun(run.titleID))
                     .help(PortAction.stopHelp)
             }
         }
@@ -133,7 +133,7 @@ private struct PortDetailView: View {
 
     /// The agent and its start, while it runs on this port
     private var runningSince: PortSubtitle.Running? {
-        guard model.isRunning(port), let run = model.activePortRun else { return nil }
+        guard let run = model.activeRun(port.titleID) else { return nil }
         return PortSubtitle.Running(agent: run.kind.displayName, startedAt: run.startedAt)
     }
 
@@ -162,7 +162,7 @@ private struct PortDetailView: View {
                 .padding(.vertical, Space.xs)
             if let operation = model.portOperations[port.titleID] {
                 PortActivityLine(text: operation, startedAt: nil)
-            } else if model.isRunning(port), let run = model.activePortRun {
+            } else if let run = model.activeRun(port.titleID) {
                 PortActivityLine(text: run.phase, startedAt: run.startedAt)
             }
         }

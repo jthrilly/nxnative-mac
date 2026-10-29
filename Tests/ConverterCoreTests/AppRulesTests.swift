@@ -197,15 +197,19 @@ struct RepositoryAdviceTests {
 
 struct CoordinationTests {
     @Test func quitPrompt() {
-        #expect(QuitRules.prompt(conversion: nil, installing: false, agent: nil, operations: []) == nil)
-        let converting = QuitRules.prompt(conversion: "Super Game", installing: false, agent: nil, operations: [])
+        #expect(QuitRules.prompt(conversion: nil, installing: false, agents: [], operations: []) == nil)
+        let converting = QuitRules.prompt(conversion: "Super Game", installing: false, agents: [], operations: [])
         #expect(converting?.message == "Stop converting Super Game?" && converting?.button == "Stop and Quit")
-        let installing = QuitRules.prompt(conversion: "Super Game", installing: true, agent: nil, operations: [])
+        let installing = QuitRules.prompt(conversion: "Super Game", installing: true, agents: [], operations: [])
         #expect(installing?.message == "Quit when Super Game is installed?" && installing?.button == "Quit After the Install")
-        let all = QuitRules.prompt(conversion: "Super Game", installing: true, agent: (name: "Codex", game: "Other"), operations: ["Checking for updates…"])
+        let all = QuitRules.prompt(conversion: "Super Game", installing: true, agents: [(name: "Codex", game: "Other")], operations: ["Checking for updates…"])
         #expect(all?.message == "Stop the agent porting Other and \u{201C}Checking for updates\u{201D}?")
         #expect(all?.informative.contains("waits until the install has finished") == true)
         #expect(all?.button == "Stop and Quit")
+        let agents = QuitRules.prompt(conversion: nil, installing: false, agents: [(name: "Codex", game: "Other"), (name: "Claude Code", game: "Super Game")],
+                                      operations: [])
+        #expect(agents?.message == "Stop the 2 agents porting Other, Super Game?")
+        #expect(agents?.informative.contains("each worktree") == true)
     }
 
     @Test func folderAddedAgain() {
