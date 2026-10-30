@@ -39,8 +39,9 @@ public struct PrerequisiteChecker: Sendable {
         res = {}
         for m in mods:
             try:
-                with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()): importlib.import_module(m)
+                with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()): mod = importlib.import_module(m)
                 res[m] = ''
+                if m == 'capstone' and mod.cs_version()[0] != 5: res[m] = f'Capstone {mod.__version__} is unsupported: the rewriter requires Capstone 5.x'
             except BaseException as e: res[m] = f'{type(e).__name__}: {e}'
         print(json.dumps({'executable': sys.executable, 'version': platform.python_version(), 'modules': res, 'venv': sys.prefix != sys.base_prefix,
                           'externally_managed': os.path.exists(os.path.join(sysconfig.get_path('stdlib'), 'EXTERNALLY-MANAGED'))}))
@@ -82,10 +83,12 @@ public struct PrerequisiteChecker: Sendable {
             let broken = !isAbsent(probe.modules["lz4.block"], package: "lz4")
             out.append("PYLZ4_USE_SYSTEM_LZ4=0 " + pipInstall(probe, (broken ? ["--force-reinstall"] : []) + ["--no-binary", "lz4", "lz4"]))
         }
-        let packages = need.compactMap { ["capstone": "capstone", "fontTools": "fonttools", "backports.zstd": "backports.zstd"][$0] }
+        let packages = need.compactMap { ["capstone": shellQuote(capstone), "fontTools": "fonttools", "backports.zstd": "backports.zstd"][$0] }
         if !packages.isEmpty { out.append(pipInstall(probe, packages)) }
         return out
     }
+
+    static let capstone = "capstone>=5,<6"   // the rewriter uses Capstone 5's names, which Capstone 6 renamed: the NSP script rejects other versions
 
     static func requiredModules(pythonVersion: String) -> [String] {
         let v = pythonVersion.split(separator: ".").map { Int($0.prefix { $0.isNumber }) ?? 0 }
@@ -177,8 +180,8 @@ public struct PrerequisiteChecker: Sendable {
                 return result(.missing, "\(python) does not run", Self.urlFix("Download Python", "https://www.python.org/downloads/macos/"))
             }
             let v = p.version.split(separator: ".").map { Int($0.prefix { $0.isNumber }) ?? 0 }
-            let ok = v.count >= 2 && (v[0], v[1]) >= (3, 9)
-            return result(ok ? .ok : .missing, "Python \(p.version) (\(p.executable))" + (ok ? "" : ": the script needs Python 3.9 or later"),
+            let ok = v.count >= 2 && (v[0], v[1]) >= (3, 12)
+            return result(ok ? .ok : .missing, "Python \(p.version) (\(p.executable))" + (ok ? "" : ": the script needs Python 3.12 or later"),
                           Self.urlFix("Download Python", "https://www.python.org/downloads/macos/"))
         case .pythonModules:
             guard let p = await probe.value else { return result(.unknown, "Python does not run") }

@@ -20,7 +20,15 @@ struct PrerequisitesTests {
                                                                                    "fontTools": "", "backports.zstd": "ModuleNotFoundError: No module named 'backports'", "nsz": "x"],
                             inVirtualEnv: true, externallyManaged: false)
         #expect(PrerequisiteChecker.pipCommands(for: p) == ["PYLZ4_USE_SYSTEM_LZ4=0 '/v/bin/python' -m pip install --no-binary lz4 lz4",
-                                                           "'/v/bin/python' -m pip install capstone backports.zstd"])
+                                                           "'/v/bin/python' -m pip install 'capstone>=5,<6' backports.zstd"])
+    }
+
+    // The NSP script rejects any Capstone but 5.x (its rewriter uses Capstone 5's names): the probe reports another as not usable, and pip brings 5.x back
+    @Test func pipUnsupportedCapstone() {
+        let p = PythonProbe(executable: "/v/bin/python", version: "3.13.6", modules: ["lz4.block": "", "capstone": "Capstone 6.0.0a5 is unsupported: the rewriter requires Capstone 5.x",
+                                                                                   "fontTools": "", "backports.zstd": ""], inVirtualEnv: true, externallyManaged: false)
+        #expect(PrerequisiteChecker.pipCommands(for: p) == ["'/v/bin/python' -m pip install 'capstone>=5,<6'"])
+        #expect(PrerequisiteChecker.probeScript.contains("cs_version()[0] != 5"))
     }
 
     @Test func pipExternallyManagedBrokenLZ4() {

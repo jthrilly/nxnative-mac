@@ -116,7 +116,7 @@ The pages:
 - **Setup**: what a conversion needs, each item with its fix. Install Missing runs the fixes that need neither a password nor administrator rights. The items:
   - Apple silicon, Xcode and its license, the Metal Toolchain;
   - Homebrew, git, zstd, spirv-cross, glslang;
-  - the .NET 10 SDK, Python and its modules, nsz;
+  - the .NET 10 SDK, Python 3.12 or later and its modules (Capstone 5.x, which the NSP script requires), nsz;
   - the nxnative checkout and `prod.keys`;
   - Claude Code and Codex, for ports.
 
@@ -147,6 +147,9 @@ An app without a settings list, or one this version can't read (a newer schema o
   with its window.
 - **env.txt:** a setting that an `env.txt` sets is greyed out, since the file wins. That covers the game's own, in
   `~/Library/Application Support/nxnative/<title ID>/`, and the app's.
+- **Cloud saves:** the iCloud Drive folder the game's Mac and iPhone apps share their save through. It is kept beside the choices as `cloudSaves.folder`, which
+  the game's launcher reads at every start (nxnative's docs/frontends.md, The cloud saves folder). **Turn Off** removes it. An `env.txt`'s `DM_SAVE_SYNC` wins and
+  is shown fixed. Only apps built with an nxnative that has cloud saves (30 October 2026 or later) show it.
 
 ### iPhone and iPad: an Xcode project
 

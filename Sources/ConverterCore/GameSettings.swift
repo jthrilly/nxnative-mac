@@ -271,3 +271,41 @@ public enum GameLaunch {
         bundleID.flatMap { $0.isEmpty ? nil : $0 } ?? "org.nxnative.\(titleID)"
     }
 }
+
+/// The folder a Mac game app's save is synced through (nxnative's docs/frontends.md, The cloud saves folder). It is no row of the settings list: it is
+/// cloudSaves.folder in the same preferences domain, an absolute path, which the app's launcher reads at every start and passes to the host as DM_SAVE_SYNC.
+/// No key, or an empty string, is off. A DM_SAVE_SYNC in the launch environment, then an env.txt, wins over it
+public enum CloudSaves {
+    public static let key = "cloudSaves.folder"
+    public static let variable = "DM_SAVE_SYNC"
+
+    public static func folder(in store: some ChoiceStore) -> String { (store.value(forKey: key) as? String) ?? "" }
+
+    public static func setFolder(_ folder: String, in store: some ChoiceStore) { store.set(folder.isEmpty ? nil : folder, forKey: key) }
+
+    /// iCloud Drive, as the Finder shows it
+    public static var iCloudDrive: String { NSHomeDirectory() + "/Library/Mobile Documents/com~apple~CloudDocs" }
+
+    /// A folder as the Finder and the Files app name it (iCloud Drive › Documents › Saves), and DM_SAVE_SYNC's own values: icloud, 0
+    public static func shown(_ path: String, drive: String = iCloudDrive) -> String {
+        switch path {
+        case "": return "Off"
+        case "0": return "Off"
+        case "icloud": return "iCloud Drive › nxnative Saves"
+        default:
+            guard path == drive || path.hasPrefix(drive + "/") else { return path }
+            return (["iCloud Drive"] + path.dropFirst(drive.count).split(separator: "/").map(String.init)).joined(separator: " › ")
+        }
+    }
+
+    /// The app's launcher reads the key: apps from an nxnative before cloud saves (PR #617) ignore it
+    public static func isSupported(app: URL) -> Bool {
+        guard let exe = Bundle(url: app)?.executableURL, let data = try? Data(contentsOf: exe, options: .alwaysMapped) else { return false }
+        return data.range(of: Data(key.utf8)) != nil
+    }
+
+    /// For one start only: DM_SAVE_SYNC when the folder shown differs from the kept one (0 turns it off for that start)
+    public static func launchOverride(shown: String, kept: String) -> [String: String] {
+        shown == kept ? [:] : [variable: shown.isEmpty ? "0" : shown]
+    }
+}

@@ -174,4 +174,37 @@ struct GameSettingsTests {
         let known: Set = ["env", "kind", "section", "label", "note", "default", "options", "min", "max", "step", "on", "off", "base", "level", "needs"]
         #expect(Set(setting.keys).subtracting(known).isEmpty, "fields this app does not read: \(Set(setting.keys).subtracting(known).sorted())")
     }
+
+    // docs/frontends.md, The cloud saves folder: cloudSaves.folder in the same domain, no key or an empty string is off
+    @Test func cloudSavesFolder() {
+        let store = MemoryStore()
+        #expect(CloudSaves.folder(in: store) == "")
+        CloudSaves.setFolder("/Users/j/Library/Mobile Documents/com~apple~CloudDocs/Saves", in: store)
+        #expect(store.values["cloudSaves.folder"] as? String == "/Users/j/Library/Mobile Documents/com~apple~CloudDocs/Saves")
+        CloudSaves.setFolder("", in: store)
+        #expect(store.values["cloudSaves.folder"] == nil)
+        let drive = "/Users/j/Library/Mobile Documents/com~apple~CloudDocs"
+        #expect(CloudSaves.shown(drive + "/Documents/Saves", drive: drive) == "iCloud Drive › Documents › Saves")
+        #expect(CloudSaves.shown("/Volumes/Saves", drive: drive) == "/Volumes/Saves")
+        #expect(CloudSaves.shown("icloud", drive: drive) == "iCloud Drive › nxnative Saves")
+        #expect(CloudSaves.shown("", drive: drive) == "Off")
+        #expect(CloudSaves.launchOverride(shown: "/a", kept: "/a") == [:])
+        #expect(CloudSaves.launchOverride(shown: "/b", kept: "/a") == ["DM_SAVE_SYNC": "/b"])
+        #expect(CloudSaves.launchOverride(shown: "", kept: "/a") == ["DM_SAVE_SYNC": "0"])
+    }
+
+    @Test func cloudSavesNeedALauncherThatReadsTheKey() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        func app(_ name: String, launcher: String) throws -> URL {
+            let app = root.appendingPathComponent("\(name).app"), macos = app.appendingPathComponent("Contents/MacOS")
+            try FileManager.default.createDirectory(at: macos, withIntermediateDirectories: true)
+            let plist: [String: Any] = ["CFBundleExecutable": "launcher", "CFBundleIdentifier": "org.nxnative.\(name)", "CFBundlePackageType": "APPL"]
+            try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0).write(to: app.appendingPathComponent("Contents/Info.plist"))
+            try Data(launcher.utf8).write(to: macos.appendingPathComponent("launcher"))
+            return app
+        }
+        #expect(CloudSaves.isSupported(app: try app("New", launcher: "\u{0}launcher.DM_FPS_TARGET\u{0}cloudSaves.folder\u{0}")))
+        #expect(!CloudSaves.isSupported(app: try app("Old", launcher: "\u{0}launcher.DM_FPS_TARGET\u{0}")))
+    }
 }

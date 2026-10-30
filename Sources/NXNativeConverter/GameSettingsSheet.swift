@@ -1,7 +1,8 @@
 // Game Settings: a game app's settings drawn from the list it carries (launcher.json), as nxnative's front-end guidance has a front end do it (docs/frontends.md).
 // Save keeps the choices in the app's own preferences (launcher.<VAR>, only those away from the tested defaults), where the game's own settings window and a start
 // from Finder read them too. Play Once starts the game with the values shown for that start only (its launch environment), and keeps nothing. A start from here
-// skips the game's own window (DM_LAUNCHER=0), since this sheet takes its place; the saved choices still apply. A setting an env.txt sets is shown, not changed
+// skips the game's own window (DM_LAUNCHER=0), since this sheet takes its place; the saved choices still apply. A setting an env.txt sets is shown, not changed.
+// Cloud saves: the folder the save is synced through, kept beside the choices as cloudSaves.folder (docs/frontends.md, The cloud saves folder)
 import AppKit
 import ConverterCore
 import SwiftUI
@@ -13,6 +14,9 @@ struct GameSettingsSheet: View {
     private let source: GameSettingsSource
     private let store: AppPreferencesStore
     @State private var form: GameSettingsForm
+    @State private var cloudFolder: String
+    private let keptCloudFolder: String
+    private let cloudSupported: Bool
     @AppStorage("gameSettings.advanced") private var advanced = false
 
     init(entry: LibraryEntry) {
@@ -24,6 +28,9 @@ struct GameSettingsSheet: View {
         let list: GameSettingsList
         if case .list(let l) = source { list = l } else { list = GameSettingsList(game: entry.app.titleID, settings: []) }
         _form = State(initialValue: GameSettingsForm(list: list, store: store, fixed: EnvFile.fixedValues(app: entry.app.url, titleID: entry.app.titleID)))
+        keptCloudFolder = CloudSaves.folder(in: store)
+        _cloudFolder = State(initialValue: keptCloudFolder)
+        cloudSupported = CloudSaves.isSupported(app: entry.app.url)
     }
 
     var body: some View {
@@ -86,6 +93,7 @@ struct GameSettingsSheet: View {
                     Section(section.title) { ForEach(section.rows) { row($0) } }
                 }
             }
+            if cloudSupported { cloudSaves }
             Section {
                 Button("Reset to Tested Defaults") { form.reset() }
                     .disabled(!form.differsFromDefaults)
@@ -95,6 +103,45 @@ struct GameSettingsSheet: View {
             }
         }
         .formStyle(.grouped)
+    }
+
+    /// The iCloud Drive folder the Mac and iPhone apps of this game share their save through; an env.txt's DM_SAVE_SYNC fixes it
+    private var cloudSaves: some View {
+        let fixed = form.fixed[CloudSaves.variable]
+        return Section {
+            LabeledContent("Cloud saves") {
+                Text(fixed.map { "\(CloudSaves.shown($0)) (env.txt)" } ?? CloudSaves.shown(cloudFolder))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.head)
+                    .help(fixed ?? cloudFolder)
+            }
+            if fixed == nil {
+                HStack {
+                    Button(cloudFolder.isEmpty ? "Choose a Folder…" : "Choose a Different Folder…", action: chooseCloudFolder)
+                    if !cloudFolder.isEmpty { Button("Turn Off") { cloudFolder = "" } }
+                }
+            }
+        } header: {
+            Text("Cloud Saves")
+        } footer: {
+            Text("Choose the iCloud Drive folder the iPhone app uses for this game. The save comes in when the game starts and goes out after each save; a save that is "
+                 + "replaced is kept in the save's -backups folder.")
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private func chooseCloudFolder() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true; panel.canChooseFiles = false; panel.allowsMultipleSelection = false; panel.canCreateDirectories = true
+        panel.prompt = "Use for Cloud Saves"
+        panel.message = "The folder the iPhone app chose in its launcher's Cloud saves"
+        panel.directoryURL = URL(fileURLWithPath: cloudFolder.isEmpty ? CloudSaves.iCloudDrive : cloudFolder)
+        if panel.runModal() == .OK, let url = panel.url { cloudFolder = url.path }
+    }
+
+    private var cloudOverride: [String: String] {
+        form.fixed[CloudSaves.variable] == nil ? CloudSaves.launchOverride(shown: cloudFolder, kept: keptCloudFolder) : [:]
     }
 
     private func row(_ s: GameSetting) -> some View {
@@ -145,9 +192,13 @@ struct GameSettingsSheet: View {
             Spacer(minLength: Space.m)
             Button("Cancel") { dismiss() }
                 .keyboardShortcut(.cancelAction)
-            Button("Play Once") { play(overrides: form.launchOverrides); dismiss() }
+            Button("Play Once") { play(overrides: form.launchOverrides.merging(cloudOverride) { a, _ in a }); dismiss() }
                 .help("Start the game with these settings for this start only, without keeping them")
-            Button("Save") { form.save(to: store); dismiss() }
+            Button("Save") {
+                form.save(to: store)
+                if form.fixed[CloudSaves.variable] == nil && cloudFolder != keptCloudFolder { CloudSaves.setFolder(cloudFolder, in: store) }
+                dismiss()
+            }
                 .keyboardShortcut(.defaultAction)
                 .disabled(!isList)
                 .help("Keep these settings for every start of the game, from here, the game's own window or Finder")
