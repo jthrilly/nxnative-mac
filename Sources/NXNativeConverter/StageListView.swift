@@ -87,6 +87,12 @@ private struct StageRow: View {
                         Text(ProgressFormat.duration(elapsed)).font(.mono).foregroundStyle(.secondary)
                     }
                 }
+                if let stale = stage.shadersStale {
+                    Label(stale.summary, systemImage: "arrow.triangle.2.circlepath")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .help("A first build after this change takes longer; the next one reuses the new libraries")
+                }
                 if running, let progress = stage.progress {
                     let count = ProgressFormat.count(progress)
                     if let fraction = progress.fraction { ProgressView(value: min(max(fraction, 0), 1)).controlSize(.small) }

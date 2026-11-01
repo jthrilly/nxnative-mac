@@ -99,4 +99,13 @@ struct BuildStateTests {
         s.apply(.progress(ProgressSample(k: 1, name: "a", step: "", fraction: 7)), at: t0)
         #expect(s.overallFraction == 0.5)
     }
+
+    @Test func shadersStaleMarksItsStage() {
+        var s = BuildState()
+        s.apply(.shadersStale(ShadersStale(reason: .chain, count: 3)), at: t0)   // no stage yet: nothing to mark
+        s.apply(.stage(k: 1, n: 2, name: "shaders", step: ""), at: t0)
+        s.apply(.shadersStale(ShadersStale(reason: .chain, new: "b-42", count: 3)), at: t0)
+        #expect(s.stages[0].shadersStale?.count == 3)
+        #expect(s.log.isEmpty)
+    }
 }

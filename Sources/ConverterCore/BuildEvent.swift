@@ -1,4 +1,4 @@
-// The NSP script's `--progress json` events (scripts/build_ipa_from_nsp.py, Progress._json): one JSON object per stdout line, each with "ev" and "t". These five are
+// The NSP script's `--progress json` events (scripts/build_ipa_from_nsp.py, Progress._json): one JSON object per stdout line, each with "ev" and "t". These six are
 // the ones nxnative's front-end guidance lists (docs/frontends.md, Building: the NSP script); any other is ignored, so a newer script's events do no harm
 import Foundation
 
@@ -14,11 +14,30 @@ public struct ProgressSample: Sendable, Equatable {
     }
 }
 
+/// The shader step rebuilds its libraries: another translation chain, or the profile's shader inputs changed (`shaders_stale`)
+public struct ShadersStale: Sendable, Equatable {
+    public enum Reason: String, Sendable { case chain, inputs, other }
+    public var reason: Reason; public var old: String; public var new: String; public var count: Int
+
+    public init(reason: Reason, old: String = "", new: String = "", count: Int = 0) { self.reason = reason; self.old = old; self.new = new; self.count = count }
+
+    /// What the stage row says: why this build compiles shaders again, and how many libraries
+    public var summary: String {
+        let why = switch reason {
+        case .chain: "nxnative's shader translation changed"
+        case .inputs: "the game profile's shaders changed"
+        case .other: "the cached ones are out of date"
+        }
+        return "Rebuilding \(count == 1 ? "1 shader library" : "\(count) shader libraries"): \(why)"
+    }
+}
+
 public enum BuildEvent: Sendable, Equatable {
     case stage(k: Int, n: Int, name: String, step: String)
     case step(k: Int, name: String, step: String)
     case progress(ProgressSample)
     case stageEnd(k: Int, name: String, ok: Bool, summary: String, elapsed: Double)
+    case shadersStale(ShadersStale)
     case say(String)
     case unknown(String)
 
@@ -36,6 +55,8 @@ public enum BuildEvent: Sendable, Equatable {
                                             unit: f.string("unit"), estimated: f.bool("est"), note: f.string("note"), fraction: f.double("frac"),
                                             eta: f.double("eta"), elapsed: f.double("elapsed")))
         case "stage_end": return .stageEnd(k: f.int("k"), name: f.string("name"), ok: f.bool("ok", default: true), summary: f.string("summary"), elapsed: f.double("elapsed") ?? 0)
+        case "shaders_stale":
+            return .shadersStale(ShadersStale(reason: ShadersStale.Reason(rawValue: f.string("reason")) ?? .other, old: f.string("old"), new: f.string("new"), count: f.int("count")))
         case "say": return .say(f.string("msg"))
         default: return .unknown(ev)
         }

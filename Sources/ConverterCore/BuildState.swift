@@ -10,6 +10,7 @@ public struct StageRecord: Sendable, Equatable, Identifiable {
     public var status: StageStatus; public var summary: String; public var elapsed: Double?
     public var progress: ProgressSample?
     public var startedAt: Date
+    public var shadersStale: ShadersStale? = nil   // this stage rebuilds the shader libraries
 }
 
 public enum LogKind: Sendable, Equatable { case info, warning, error }
@@ -59,6 +60,9 @@ public struct BuildState: Sendable, Equatable {
         case let .stageEnd(_, _, ok, summary, elapsed):
             guard let i = runningIndex else { return }
             stages[i].status = ok ? .succeeded : .failed; stages[i].summary = summary; stages[i].elapsed = elapsed
+        case let .shadersStale(stale):
+            guard let i = runningIndex else { return }
+            stages[i].shadersStale = stale   // the say that follows tells the log
         case let .say(message):
             let warning = Self.warningText(message)
             if let warning { lastWarning = warning }

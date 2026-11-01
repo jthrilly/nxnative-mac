@@ -57,4 +57,12 @@ struct BuildEventTests {
         guard case let .progress(p) = BuildEvent.decode(#"{"ev": "progress", "k": 1, "done": true, "est": 1}"#) else { Issue.record("not a progress event"); return }
         #expect(p.done == nil && p.estimated)
     }
+
+    // docs/frontends.md: shaders_stale, once per shader step that rebuilds its libraries
+    @Test func shadersStale() {
+        #expect(BuildEvent.decode(#"{"ev": "shaders_stale", "t": 1.0, "reason": "chain", "old": ["b-41"], "new": "b-42", "count": 812}"#)
+                == .shadersStale(ShadersStale(reason: .chain, old: "", new: "b-42", count: 812)))
+        #expect(BuildEvent.decode(#"{"ev": "shaders_stale", "reason": "later", "count": 1}"#) == .shadersStale(ShadersStale(reason: .other, count: 1)))
+        #expect(ShadersStale(reason: .inputs, count: 1).summary == "Rebuilding 1 shader library: the game profile's shaders changed")
+    }
 }
