@@ -110,12 +110,17 @@ struct ConvertSheet: View {
                     dismiss()
                 }
                 .keyboardShortcut(.defaultAction)
-                .disabled(!games.contains { $0.scan.isConvertible } || platforms.isEmpty)
+                .disabled(!games.contains(where: canConvert) || platforms.isEmpty)
             }
         }
     }
 
     private var games: [PendingGame] { request.games }
+
+    /// A dump folder is packed only from a profile: the survey reads NSPs
+    private func canConvert(_ game: PendingGame) -> Bool {
+        game.scan.isConvertible && !(game.scan.isDump && request.match(game, package: options.package) == .noProfile)
+    }
     private var single: PendingGame? { games.count == 1 ? games.first : nil }
 
     private var xcodeNote: String {
@@ -162,7 +167,7 @@ struct ConvertSheet: View {
     }
 
     private var status: String {
-        if !games.contains(where: { $0.scan.isConvertible }) { return games.count == 1 ? "This folder can't be converted." : "None of these folders can be converted." }
+        if !games.contains(where: canConvert) { return games.count == 1 ? "This folder can't be converted." : "None of these folders can be converted." }
         if platforms.isEmpty { return "Choose a platform to convert for, or Port with an Agent under the game." }
         if model.isConverting, let active = model.activeJob { return "\(active.name) is being converted: \(games.count == 1 ? "this game starts" : "these games start") when it has finished." }
         return "The game settings (frame rate, render scale…) are chosen in the Library, under Game Settings, once the app is made."
@@ -249,7 +254,9 @@ private struct GameRow: View {
         switch match {
         case .tested(_, let display): return "Tested: \(display)"
         case .untestedVersion(_, let version, _): return "\(version): an untested version, packed from a derived profile"
-        case .noProfile: return "No profile yet: a provisional one is made, and the app may not boot"
+        case .noProfile:
+            return game.scan.isDump ? "No profile: a folder of the game's files converts only a game nxnative has a profile for"
+                : "No profile yet: a provisional one is made, and the app may not boot"
         }
     }
 }

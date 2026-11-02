@@ -11,6 +11,10 @@ struct ConversionTests {
         #expect(ConversionCommand.arguments(script: script, folder: folder, keys: keys, options: ConversionOptions()) == base)
     }
 
+    @Test func dumpNeedsNoKeys() {   // a dump folder's files are not encrypted: no -k
+        #expect(ConversionCommand.arguments(script: script, folder: folder, keys: nil, options: ConversionOptions()) == base.filter { $0 != "-k" && $0 != "/k/prod.keys" })
+    }
+
     @Test func argumentsWithEveryOption() {
         var o = ConversionOptions()
         o.language = "ja"; o.package = "v327680"; o.appName = "My Game"; o.bundleID = "org.example.game"; o.allowDamaged = true

@@ -53,7 +53,7 @@ struct JobOptionsForm: View {
                             Text(Self.detail(file)).font(.caption).foregroundStyle(.secondary)
                         }
                         Spacer()
-                        Text(ProgressFormat.bytes(Double(file.size))).monospacedDigit().foregroundStyle(.secondary)
+                        if file.size > 0 { Text(ProgressFormat.bytes(Double(file.size))).monospacedDigit().foregroundStyle(.secondary) }   // a dump's folders have none
                     }
                 }
             }

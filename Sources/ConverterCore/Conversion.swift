@@ -70,9 +70,10 @@ public struct ScriptSupport: Sendable {
 public enum ConversionCommand {
     /// `teamID` is the Apple developer team an Xcode project is signed by (Settings); empty leaves it to the script (the team chosen in Xcode, else a placeholder)
     /// `app` is where a Mac app goes (appOutput); an Xcode project goes where --prepare-xcode puts it
-    public static func arguments(script: URL, folder: URL, keys: URL, options: ConversionOptions, teamID: String = "", app: URL? = nil) -> [String] {
+    /// `keys` nil: a dump folder, whose files are not encrypted
+    public static func arguments(script: URL, folder: URL, keys: URL?, options: ConversionOptions, teamID: String = "", app: URL? = nil) -> [String] {
         let platform = options.output == .xcodeProject ? ["--platform", "ios", "--prepare-xcode"] : ["--platform", "mac-app"]
-        var args = ["-u", script.path, folder.path, "-k", keys.path] + platform + ["--progress", "json"]
+        var args = ["-u", script.path, folder.path] + (keys.map { ["-k", $0.path] } ?? []) + platform + ["--progress", "json"]
         if options.output == .macApp, let app { args += ["-o", app.path] }
         for (flag, value) in [("-l", options.language), ("-p", options.package), ("--app-name", options.appName), ("--bundle-id", options.bundleID)] where !value.isEmpty {
             args += [flag, value]

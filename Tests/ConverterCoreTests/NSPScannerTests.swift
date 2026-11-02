@@ -160,4 +160,51 @@ struct NSPScannerTests {
         #expect(NSPScanner.gameFolders(from: [root.appendingPathComponent("A/../A")]).map(\.lastPathComponent) == ["A"])
         #expect(NSPScanner.gameFolders(from: [try t.file("Games/B/readme.txt")]) == [])
     }
+
+    /// A main.npdm with an ACI0 section at 0x80 holding `program` (pack_dump.program_id's layout)
+    static func npdm(_ program: UInt64) -> Data {
+        var d = Data(count: 0x80 + 0x40)
+        d.replaceSubrange(0..<4, with: Data("META".utf8))
+        func put32(_ v: UInt32, _ at: Int) { withUnsafeBytes(of: v.littleEndian) { d.replaceSubrange(at..<(at + 4), with: $0) } }
+        put32(0x80, 0x70); put32(0x40, 0x74)
+        d.replaceSubrange(0x80..<0x84, with: Data("ACI0".utf8))
+        withUnsafeBytes(of: program.littleEndian) { d.replaceSubrange(0x90..<0x98, with: $0) }
+        return d
+    }
+
+    // build_ipa_from_nsp.py takes a dump folder (pack_dump.py's layout) in place of NSPs: no prod.keys, the title ID from main.npdm
+    @Test func dumpFolder() throws {
+        let t = try TempDir(); defer { t.remove() }
+        try t.file("base/exefs/main.npdm", Self.npdm(app))
+        try t.file("base/romfs/data.bin")
+        try t.file("updates/458752/exefs/main")
+        try t.file("updates/65536/exefs/main")
+        try t.file("updates/notes/readme.txt")
+        try t.file("dlc/0100ABCD00001001/0/romfs/a.bin")
+        let s = NSPScanner.scan(folder: t.url)
+        #expect(s.isDump && s.isConvertible && s.errors == [])
+        #expect(s.titleIDString == "0100ABCD00000000")
+        #expect(s.versions == [0, 65536, 458752])
+        #expect(s.dlc.map(\.titleID) == [app + 0x1001])
+        #expect(s.displayName == t.url.lastPathComponent)
+        #expect(NSPScanner.gameFolders(from: [t.url]).map(\.path) == [t.url.standardized.path])
+        #expect(NSPScanner.gameFolders(from: [t.url.appendingPathComponent("base")]).map(\.path) == [t.url.standardized.path])   // a folder inside the dump
+        #expect(NSPScanner.gameFolders(from: [t.url.deletingLastPathComponent()]).map(\.path).contains(t.url.standardized.path))   // a folder of dumps
+    }
+
+    @Test func dumpWithPackagesBesideItIsAPackageFolder() throws {   // the script's dump_folder: NSPs in the folder are what the player asked for
+        let t = try TempDir(); defer { t.remove() }
+        try t.file("base/exefs/main.npdm", Self.npdm(app))
+        try t.file("base/romfs/data.bin")
+        try t.file("Game [0100ABCD00000000][v0].nsp", pfs0([ticket(app)]))
+        #expect(!NSPScanner.scan(folder: t.url).isDump)
+    }
+
+    @Test func dumpOfAnUpdateProgram() throws {
+        let t = try TempDir(); defer { t.remove() }
+        try t.file("base/exefs/main.npdm", Self.npdm(app | 0x800))
+        try t.file("base/romfs/data.bin")
+        let s = NSPScanner.scan(folder: t.url)
+        #expect(s.isDump && !s.isConvertible && s.errors.count == 1)
+    }
 }

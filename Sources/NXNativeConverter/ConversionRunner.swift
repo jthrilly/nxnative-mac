@@ -18,7 +18,8 @@ extension AppModel {
             if job.repository != nil { return conclude(job, .failed, "The port's worktree \(repo.path) has no scripts/build_ipa_from_nsp.py. Check the port on the Ports page.") }
             return conclude(job, .failed, "nxnative was not found at \(repo.path) (it has no scripts/build_ipa_from_nsp.py). Choose or download it on the Setup page.")
         }
-        guard let keys = settings.keysURL, fm.fileExists(atPath: keys.path) else {
+        let keys = job.scan.isDump ? nil : settings.keysURL   // a dump's files are not encrypted
+        guard job.scan.isDump || keys.map({ fm.fileExists(atPath: $0.path) }) == true else {
             let shown = settings.keysURL.map { " at \($0.path)" } ?? ""
             return conclude(job, .failed, "The prod.keys file was not found\(shown). Choose it on the Setup page.")
         }
