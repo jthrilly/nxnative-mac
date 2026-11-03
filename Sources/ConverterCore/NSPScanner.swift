@@ -98,9 +98,11 @@ public enum NSPScanner {
         return scan
     }
 
-    /// pack_dump.is_dump: base/exefs/main.npdm and base/romfs
+    /// pack_dump.is_dump: base/exefs/main.npdm, and base/romfs or an update's romfs (an update's RomFS is whole, so the base's may be left out)
     public static func isDump(_ folder: URL) -> Bool {
-        isRegularFile(folder.appendingPathComponent("base/exefs/main.npdm")) && isDirectory(folder.appendingPathComponent("base/romfs"))
+        isRegularFile(folder.appendingPathComponent("base/exefs/main.npdm"))
+            && (isDirectory(folder.appendingPathComponent("base/romfs"))
+                || subfolders(of: folder.appendingPathComponent("updates")).contains { isDirectory($0.appendingPathComponent("romfs")) })
     }
 
     /// pack_dump.scan: the title ID is main.npdm's program ID, an update is updates/<version> (a decimal title version), a DLC dlc/<its title ID in hex>

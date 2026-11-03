@@ -207,4 +207,13 @@ struct NSPScannerTests {
         let s = NSPScanner.scan(folder: t.url)
         #expect(s.isDump && !s.isConvertible && s.errors.count == 1)
     }
+
+    @Test func dumpWithTheRomFSOnlyInAnUpdate() throws {   // pack_dump.is_dump: an update's RomFS is whole, so base/romfs may be left out
+        let t = try TempDir(); defer { t.remove() }
+        try t.file("base/exefs/main.npdm", Self.npdm(app))
+        #expect(!NSPScanner.isDump(t.url))
+        try t.file("updates/458752/romfs/data.bin")
+        let s = NSPScanner.scan(folder: t.url)
+        #expect(s.isDump && s.isConvertible && s.versions == [0, 458752])
+    }
 }
