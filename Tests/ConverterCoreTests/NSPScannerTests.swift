@@ -216,4 +216,40 @@ struct NSPScannerTests {
         let s = NSPScanner.scan(folder: t.url)
         #expect(s.isDump && s.isConvertible && s.versions == [0, 458752])
     }
+
+    /// A NUP with only its superblock, TOC header and package records (pack_nup.py's SUPER, TOC and PKG layouts)
+    static func nup(_ packages: [(titleID: UInt64, version: UInt32, kind: UInt8)]) -> Data {
+        var d = Data(count: 0x80 + 0x30 + packages.count * 0x40)
+        func put<T: FixedWidthInteger>(_ v: T, _ at: Int) { withUnsafeBytes(of: v.littleEndian) { d.replaceSubrange(at..<(at + MemoryLayout<T>.size), with: $0) } }
+        d.replaceSubrange(0..<4, with: Data([0x4E, 0x55, 0x50, 0x01]))
+        put(UInt64(0x80), 8); put(UInt32(packages.count), 72)
+        d.replaceSubrange(0x80..<0x84, with: Data([0x54, 0x4F, 0x43, 0x01])); put(UInt32(packages.count), 0x84)
+        for (i, k) in packages.enumerated() {
+            let p = 0xB0 + i * 0x40
+            put(k.titleID, p); put(k.version, p + 20); put(k.kind, p + 24)
+        }
+        return d
+    }
+
+    // build_ipa_from_nsp.py takes one NUP container (a .nup file) in place of NSPs: no prod.keys; a base that is a placeholder (title ID 0) takes an update's
+    @Test func nupContainer() throws {
+        let t = try TempDir(); defer { t.remove() }
+        let file = try t.file("Game.nup", Self.nup([(0, 0, 0), (app | 0x800, 655360, 1), (app + 0x1001, 0, 2)]))
+        let s = NSPScanner.scan(folder: t.url)
+        #expect(s.isNup && s.isUnencrypted && s.isConvertible && s.errors == [])
+        #expect(s.titleIDString == "0100ABCD00000000")
+        #expect(s.versions == [0, 655360] && s.dlc.map(\.titleID) == [app + 0x1001])
+        #expect(s.files.count == 1 && s.totalBytes == Int64(Self.nup([(0, 0, 0), (0, 0, 0), (0, 0, 0)]).count))
+        #expect(NSPScanner.gameFolders(from: [file]).map(\.path) == [t.url.standardized.path])
+        #expect(NSPScanner.gameFolders(from: [t.url]).map(\.path) == [t.url.standardized.path])
+    }
+
+    @Test func nupWithoutABaseAndTwoNups() throws {
+        let t = try TempDir(); defer { t.remove() }
+        try t.file("Update.nup", Self.nup([(app | 0x800, 65536, 1)]))
+        #expect(!NSPScanner.scan(folder: t.url).isConvertible)
+        try t.file("Other.nup", Self.nup([(app, 0, 0)]))
+        let s = NSPScanner.scan(folder: t.url)
+        #expect(s.isNup && !s.isConvertible && s.errors.first?.hasPrefix("more than one NUP") == true)
+    }
 }

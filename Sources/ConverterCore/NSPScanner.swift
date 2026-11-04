@@ -1,7 +1,8 @@
 // What a dropped folder holds: its game files grouped as the NSP script groups them (scripts/build_ipa_from_nsp.py scan_nsps, title_of, version_of), so a folder the script
 // would refuse is shown as such before a conversion starts. The title ID comes from the ticket inside a PFS0 (NSP / NSZ), else from a "[0100…]" tag in the file name.
 // A folder of the game's files instead (a dump: base/, updates/<version>/, dlc/<DLC title ID>/, scripts/pack_dump.py) is scanned as pack_dump.scan reads it: it needs no
-// prod.keys, and the script packs it only for a game with a profile
+// prod.keys, and the script packs it only for a game with a profile. So does a folder holding one NUP container (a .nup file, scripts/pack_nup.py): its packages are read from
+// its table of contents
 import Foundation
 
 public enum NSPKind: String, Sendable, Codable { case base, update, dlc, unknown }
@@ -21,6 +22,10 @@ public struct NSPFolderScan: Sendable, Equatable {
     public var errors: [String]
     public var warnings: [String]
     public var isDump = false   // the game's files, not packages: base, updates and DLC are folders
+    public var isNup = false    // one NUP container: base, updates and DLC are its packages
+
+    /// A dump or a NUP: its files are not encrypted, so the script needs no prod.keys, and it packs only a game with a profile (the survey reads NSPs)
+    public var isUnencrypted: Bool { isDump || isNup }
 
     public var isConvertible: Bool { errors.isEmpty && base != nil }
     public var versions: [Int] { Array(Set([0] + updates.compactMap(\.version))).sorted() }
@@ -29,7 +34,7 @@ public struct NSPFolderScan: Sendable, Equatable {
     public var titleIDString: String? { applicationID.map(NSPScanner.hex16) }
 
     public var displayName: String {
-        guard let base, !isDump else { return folder.lastPathComponent }
+        guard let base, !isUnencrypted else { return folder.lastPathComponent }
         var name = "", depth = 0, closer: Character = " "
         for c in base.url.deletingPathExtension().lastPathComponent {
             if depth > 0 {
@@ -50,7 +55,15 @@ public enum NSPScanner {
 
     public static func scan(folder: URL) -> NSPFolderScan {
         let folder = folder.standardized
-        if gameFiles(in: folder).isEmpty, isDump(folder) { return scanDump(folder) }   // the script's dump_folder: a dump with no package beside it
+        if gameFiles(in: folder).isEmpty {   // the script's nup_file, then dump_folder: a NUP or a dump with no package beside it
+            let nups = nupFiles(in: folder)
+            if nups.count > 1 {
+                return NSPFolderScan(folder: folder, files: [], applicationID: nil, base: nil, updates: [], dlc: [],
+                                     errors: ["more than one NUP in \(folder.path), keep one game per folder: " + nups.map(\.lastPathComponent).joined(separator: ", ")], warnings: [], isNup: true)
+            }
+            if let nup = nups.first { return scanNup(nup, folder: folder) }
+            if isDump(folder) { return scanDump(folder) }
+        }
         var warnings: [String] = [], files: [NSPFile] = [], unknown: [Int] = []
         var families: [(app: UInt64, base: Int?, updates: [Int], dlc: [Int])] = []
         for url in gameFiles(in: folder) {
@@ -132,6 +145,54 @@ public enum NSPScanner {
         return scan
     }
 
+    /// The .nup files in a folder that start with the NUP magic (pack_nup.is_nup)
+    static func nupFiles(in folder: URL) -> [URL] {
+        let items = (try? FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: [.isRegularFileKey], options: [.skipsHiddenFiles])) ?? []
+        return items.filter { !$0.lastPathComponent.hasPrefix(".") && $0.pathExtension == "nup" && isNup($0) }.map(\.standardized)
+            .sorted { $0.lastPathComponent < $1.lastPathComponent }
+    }
+
+    static func isNup(_ url: URL) -> Bool {
+        guard let h = FileHandle(forReadingAtPath: url.path) else { return false }
+        defer { try? h.close() }
+        return (try? h.read(upToCount: 3)) == Data("NUP".utf8)
+    }
+
+    /// pack_nup.scan from the table of contents (NUP SPEC v1): the superblock (0x80: the TOC's offset at 8, the package count at 72), the TOC (0x30) and its package
+    /// records (0x40: title ID at 0, version at 20, kind at 24: 0 base, 1 update, 2 DLC). The title ID is the base package's, else an update's (a base that is an empty
+    /// placeholder has title ID 0); the script checks it against main.npdm and every file against its SHA-256
+    static func scanNup(_ nup: URL, folder: URL) -> NSPFolderScan {
+        var scan = NSPFolderScan(folder: folder, files: [], applicationID: nil, base: nil, updates: [], dlc: [], errors: [], warnings: [], isNup: true)
+        let size = fileSize(nup)
+        guard let packages = nupPackages(nup) else { scan.errors.append("\(nup.lastPathComponent) is not a NUP this app can read"); return scan }
+        let bases = packages.filter { $0.kind == 0 }, updates = packages.filter { $0.kind == 1 }
+        guard bases.count == 1 else {
+            scan.errors.append(bases.isEmpty ? "\(nup.lastPathComponent) has no base game: pack the base game and its update into one NUP" : "\(nup.lastPathComponent) has \(bases.count) base packages")
+            return scan
+        }
+        let app = bases[0].titleID != 0 ? bases[0].titleID : (updates.first?.titleID ?? 0) & ~0xFFF
+        guard app != 0, app & 0xFFF == 0 else { scan.errors.append("\(nup.lastPathComponent): \(hex16(app)) is not a base title ID"); return scan }
+        scan.applicationID = app
+        scan.base = NSPFile(url: nup, titleID: app, version: nil, kind: .base, size: size, compressed: false)
+        scan.updates = updates.map { NSPFile(url: nup, titleID: app | 0x800, version: Int($0.version), kind: .update, size: 0, compressed: false) }.sorted { ($0.version ?? 0) < ($1.version ?? 0) }
+        scan.dlc = packages.filter { $0.kind == 2 }.map { NSPFile(url: nup, titleID: $0.titleID, version: nil, kind: .dlc, size: 0, compressed: false) }
+        scan.files = [scan.base].compactMap { $0 }   // one file: the container
+        return scan
+    }
+
+    static func nupPackages(_ url: URL) -> [(titleID: UInt64, version: UInt32, kind: UInt8)]? {
+        guard let h = FileHandle(forReadingAtPath: url.path) else { return nil }
+        defer { try? h.close() }
+        guard let head = try? h.read(upToCount: 0x80), head.count == 0x80, head.prefix(3) == Data("NUP".utf8), head[head.startIndex + 3] == 1 else { return nil }
+        let tocOffset = u64(head, 8), count = Int(u32(head, 72))
+        guard count > 0, count <= 100_000, (try? h.seek(toOffset: tocOffset)) != nil, let toc = try? h.read(upToCount: 0x30 + count * 0x40),
+              toc.count == 0x30 + count * 0x40, toc.prefix(4) == Data([0x54, 0x4F, 0x43, 0x01]), Int(u32(toc, 4)) == count else { return nil }
+        return (0..<count).map { i in
+            let p = 0x30 + i * 0x40
+            return (u64(toc, p), u32(toc, p + 20), toc[toc.startIndex + p + 24])
+        }
+    }
+
     /// The ACI0 program ID of a main.npdm (pack_dump.program_id): "META", the ACI0 offset and size at 0x70, the program ID at ACI0 + 0x10
     static func programID(npdm: URL) -> UInt64? {
         guard let d = try? Data(contentsOf: npdm), d.count >= 0x78, d.prefix(4) == Data("META".utf8) else { return nil }
@@ -175,13 +236,13 @@ public enum NSPScanner {
             var isDir: ObjCBool = false
             guard FileManager.default.fileExists(atPath: u.path, isDirectory: &isDir) else { continue }
             if !isDir.boolValue {
-                if fileExtensions.contains(u.pathExtension) { add(u.deletingLastPathComponent()) }
-            } else if !gameFiles(in: u).isEmpty || isDump(u) {
+                if fileExtensions.contains(u.pathExtension) || u.pathExtension == "nup" && isNup(u) { add(u.deletingLastPathComponent()) }
+            } else if !gameFiles(in: u).isEmpty || !nupFiles(in: u).isEmpty || isDump(u) {
                 add(u)
             } else if ["base", "updates", "dlc"].contains(u.lastPathComponent), isDump(u.deletingLastPathComponent()) {
                 add(u.deletingLastPathComponent())   // a folder inside a dump
             } else {
-                for sub in subfolders(of: u) where !gameFiles(in: sub).isEmpty || isDump(sub) { add(sub) }
+                for sub in subfolders(of: u) where !gameFiles(in: sub).isEmpty || !nupFiles(in: sub).isEmpty || isDump(sub) { add(sub) }
             }
         }
         return out
@@ -242,6 +303,8 @@ public enum NSPScanner {
         }
         return names
     }
+
+    private static func u64(_ d: Data, _ at: Int) -> UInt64 { UInt64(u32(d, at)) | UInt64(u32(d, at + 4)) << 32 }
 
     private static func u32(_ d: Data, _ at: Int) -> UInt32 {
         let b = [UInt8](d[(d.startIndex + at)..<(d.startIndex + at + 4)])

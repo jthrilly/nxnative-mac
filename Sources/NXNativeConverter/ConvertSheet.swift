@@ -119,7 +119,7 @@ struct ConvertSheet: View {
 
     /// A dump folder is packed only from a profile: the survey reads NSPs
     private func canConvert(_ game: PendingGame) -> Bool {
-        game.scan.isConvertible && !(game.scan.isDump && request.match(game, package: options.package) == .noProfile)
+        game.scan.isConvertible && !(game.scan.isUnencrypted && request.match(game, package: options.package) == .noProfile)
     }
     private var single: PendingGame? { games.count == 1 ? games.first : nil }
 
@@ -255,7 +255,7 @@ private struct GameRow: View {
         case .tested(_, let display): return "Tested: \(display)"
         case .untestedVersion(_, let version, _): return "\(version): an untested version, packed from a derived profile"
         case .noProfile:
-            return game.scan.isDump ? "No profile: a folder of the game's files converts only a game nxnative has a profile for"
+            return game.scan.isUnencrypted ? "No profile: \(game.scan.isNup ? "a NUP" : "a folder of the game's files") converts only a game nxnative has a profile for"
                 : "No profile yet: a provisional one is made, and the app may not boot"
         }
     }
