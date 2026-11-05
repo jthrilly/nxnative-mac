@@ -65,4 +65,11 @@ struct BuildEventTests {
         #expect(BuildEvent.decode(#"{"ev": "shaders_stale", "reason": "later", "count": 1}"#) == .shadersStale(ShadersStale(reason: .other, count: 1)))
         #expect(ShadersStale(reason: .inputs, count: 1).summary == "Rebuilding 1 shader library: the game profile's shaders changed")
     }
+
+    // docs/frontends.md: stage_end's warn, a stage that finished without what it makes (a failed pipeline archive), and the build goes on
+    @Test func stageEndWarn() {
+        #expect(BuildEvent.decode(#"{"ev": "stage_end", "k": 9, "name": "pipeline archive", "ok": true, "summary": "failed, the app is packed without one", "elapsed": 3, "warn": true}"#)
+                == .stageEnd(k: 9, name: "pipeline archive", ok: true, summary: "failed, the app is packed without one", elapsed: 3, warn: true))
+        #expect(BuildEvent.decode(#"{"ev": "stage_end", "k": 1, "name": "a", "ok": true, "summary": "", "elapsed": 1}"#) == .stageEnd(k: 1, name: "a", ok: true, summary: "", elapsed: 1))
+    }
 }

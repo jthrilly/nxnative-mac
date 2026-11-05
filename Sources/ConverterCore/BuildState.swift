@@ -2,7 +2,7 @@
 // PROG.plan() can run twice (NSZ decompression plans 1 stage, then main plans the rest), so k restarts: stages are identified by their arrival order
 import Foundation
 
-public enum StageStatus: Sendable, Equatable { case running, succeeded, failed }
+public enum StageStatus: Sendable, Equatable { case running, succeeded, warned, failed }   // warned: finished without what it makes (stage_end warn), the build went on
 
 public struct StageRecord: Sendable, Equatable, Identifiable {
     public let id: Int
@@ -57,9 +57,9 @@ public struct BuildState: Sendable, Equatable {
         case let .progress(sample):
             guard let i = runningIndex else { return }
             stages[i].step = sample.step; stages[i].progress = sample
-        case let .stageEnd(_, _, ok, summary, elapsed):
+        case let .stageEnd(_, _, ok, summary, elapsed, warn):
             guard let i = runningIndex else { return }
-            stages[i].status = ok ? .succeeded : .failed; stages[i].summary = summary; stages[i].elapsed = elapsed
+            stages[i].status = !ok ? .failed : warn ? .warned : .succeeded; stages[i].summary = summary; stages[i].elapsed = elapsed
         case let .shadersStale(stale):
             guard let i = runningIndex else { return }
             stages[i].shadersStale = stale   // the say that follows tells the log

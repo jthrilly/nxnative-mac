@@ -36,7 +36,7 @@ public enum BuildEvent: Sendable, Equatable {
     case stage(k: Int, n: Int, name: String, step: String)
     case step(k: Int, name: String, step: String)
     case progress(ProgressSample)
-    case stageEnd(k: Int, name: String, ok: Bool, summary: String, elapsed: Double)
+    case stageEnd(k: Int, name: String, ok: Bool, summary: String, elapsed: Double, warn: Bool = false)   // warn: finished without what it makes (the build goes on)
     case shadersStale(ShadersStale)
     case say(String)
     case unknown(String)
@@ -54,7 +54,8 @@ public enum BuildEvent: Sendable, Equatable {
             return .progress(ProgressSample(k: f.int("k"), name: f.string("name"), step: f.string("step"), done: f.double("done"), total: f.double("total"),
                                             unit: f.string("unit"), estimated: f.bool("est"), note: f.string("note"), fraction: f.double("frac"),
                                             eta: f.double("eta"), elapsed: f.double("elapsed")))
-        case "stage_end": return .stageEnd(k: f.int("k"), name: f.string("name"), ok: f.bool("ok", default: true), summary: f.string("summary"), elapsed: f.double("elapsed") ?? 0)
+        case "stage_end": return .stageEnd(k: f.int("k"), name: f.string("name"), ok: f.bool("ok", default: true), summary: f.string("summary"), elapsed: f.double("elapsed") ?? 0,
+                                               warn: f.bool("warn"))
         case "shaders_stale":
             return .shadersStale(ShadersStale(reason: ShadersStale.Reason(rawValue: f.string("reason")) ?? .other, old: f.string("old"), new: f.string("new"), count: f.int("count")))
         case "say": return .say(f.string("msg"))

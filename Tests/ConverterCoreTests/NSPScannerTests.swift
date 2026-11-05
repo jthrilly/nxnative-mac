@@ -218,7 +218,7 @@ struct NSPScannerTests {
     }
 
     /// A NUP with only its superblock, TOC header and package records (pack_nup.py's SUPER, TOC and PKG layouts)
-    static func nup(_ packages: [(titleID: UInt64, version: UInt32, kind: UInt8)]) -> Data {
+    static func nup(_ packages: [(titleID: UInt64, version: UInt32, kind: UInt8)], standalone: Bool = false) -> Data {
         var d = Data(count: 0x80 + 0x30 + packages.count * 0x40)
         func put<T: FixedWidthInteger>(_ v: T, _ at: Int) { withUnsafeBytes(of: v.littleEndian) { d.replaceSubrange(at..<(at + MemoryLayout<T>.size), with: $0) } }
         d.replaceSubrange(0..<4, with: Data([0x4E, 0x55, 0x50, 0x01]))
@@ -227,18 +227,20 @@ struct NSPScannerTests {
         for (i, k) in packages.enumerated() {
             let p = 0xB0 + i * 0x40
             put(k.titleID, p); put(k.version, p + 20); put(k.kind, p + 24)
+            if standalone && k.kind == 1 { put(UInt8(1), p + 25) }
         }
         return d
     }
 
-    // build_ipa_from_nsp.py takes one NUP container (a .nup file) in place of NSPs: no prod.keys; a base that is a placeholder (title ID 0) takes an update's
+    // build_ipa_from_nsp.py takes one NUP container (a .nup file) in place of NSPs: no prod.keys; a base that is a placeholder (title ID 0) is no base game: the
+    // title ID is the update's, and there is no v0
     @Test func nupContainer() throws {
         let t = try TempDir(); defer { t.remove() }
         let file = try t.file("Game.nup", Self.nup([(0, 0, 0), (app | 0x800, 655360, 1), (app + 0x1001, 0, 2)]))
         let s = NSPScanner.scan(folder: t.url)
         #expect(s.isNup && s.isUnencrypted && s.isConvertible && s.errors == [])
         #expect(s.titleIDString == "0100ABCD00000000")
-        #expect(s.versions == [0, 655360] && s.dlc.map(\.titleID) == [app + 0x1001])
+        #expect(!s.hasBaseVersion && s.versions == [655360] && s.dlc.map(\.titleID) == [app + 0x1001])
         #expect(s.files.count == 1 && s.totalBytes == Int64(Self.nup([(0, 0, 0), (0, 0, 0), (0, 0, 0)]).count))
         #expect(NSPScanner.gameFolders(from: [file]).map(\.path) == [t.url.standardized.path])
         #expect(NSPScanner.gameFolders(from: [t.url]).map(\.path) == [t.url.standardized.path])
@@ -248,6 +250,10 @@ struct NSPScannerTests {
         let t = try TempDir(); defer { t.remove() }
         try t.file("Update.nup", Self.nup([(app | 0x800, 65536, 1)]))
         #expect(!NSPScanner.scan(folder: t.url).isConvertible)
+        let standalone = try TempDir("standalone"); defer { standalone.remove() }   // pack_nup.scan: updates marked standalone_update need no base record
+        try standalone.file("Update.nup", Self.nup([(app | 0x800, 65536, 1)], standalone: true))
+        let alone = NSPScanner.scan(folder: standalone.url)
+        #expect(alone.isConvertible && !alone.hasBaseVersion && alone.versions == [65536] && alone.newestVersion == 65536)
         try t.file("Other.nup", Self.nup([(app, 0, 0)]))
         let s = NSPScanner.scan(folder: t.url)
         #expect(s.isNup && !s.isConvertible && s.errors.first?.hasPrefix("more than one NUP") == true)

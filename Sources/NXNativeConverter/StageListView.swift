@@ -107,7 +107,7 @@ private struct StageRow: View {
                 } else if !stage.summary.isEmpty {
                     Text(stage.summary)
                         .font(.caption)
-                        .foregroundStyle(stage.status == .failed ? Tone.failure.text : .secondary)
+                        .foregroundStyle(stage.status == .failed ? Tone.failure.text : stage.status == .warned ? Tone.warning.text : .secondary)
                         .lineLimit(3)
                         .textSelection(.enabled)
                 }
@@ -129,6 +129,7 @@ private struct StageRow: View {
         switch stage.status {
         case .running: ProgressView().controlSize(.small).accessibilityLabel("Running")
         case .succeeded: Image(systemName: "checkmark.circle.fill").foregroundStyle(Tone.success.glyph).accessibilityLabel("Done")
+        case .warned: Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(Tone.warning.glyph).accessibilityLabel("Done with a warning")
         case .failed: Image(systemName: "xmark.circle.fill").foregroundStyle(Tone.failure.glyph).accessibilityLabel("Failed")
         }
     }

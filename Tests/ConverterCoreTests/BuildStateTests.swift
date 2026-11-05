@@ -108,4 +108,11 @@ struct BuildStateTests {
         #expect(s.stages[0].shadersStale?.count == 3)
         #expect(s.log.isEmpty)
     }
+
+    @Test func warnedStage() {
+        var s = BuildState()
+        s.apply(.stage(k: 1, n: 1, name: "pipeline archive", step: ""), at: t0)
+        s.apply(.stageEnd(k: 1, name: "pipeline archive", ok: true, summary: "failed, the app is packed without one", elapsed: 2, warn: true), at: t0)
+        #expect(s.stages[0].status == .warned && s.overallFraction == 1)
+    }
 }

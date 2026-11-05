@@ -22,7 +22,7 @@ When the app needs more from nxnative, that piece is an issue or a small PR ther
 - Xcode 27 (or a Swift 6.4 toolchain with the macOS 27 SDK) to build the app
 - An nxnative checkout new enough to have the script's `--platform mac-app` and `--progress json`. The app's Setup page checks this, and the nxnative page can
   download a checkout.
-- The game files (NSP, XCI, NSZ or XCZ) and the `prod.keys` of a Switch you own, or a folder of the game's files dumped from a console (`base/`, `updates/<version>/`, `dlc/`; `base/romfs` may be left out when an update has its RomFS, as nxnative's `scripts/pack_dump.py` lists them), or one NUP container (a `.nup` file, `scripts/pack_nup.py`). A dump and a NUP need no `prod.keys` and convert only a game nxnative has a profile for
+- The game files (NSP, XCI, NSZ or XCZ) and the `prod.keys` of a Switch you own, or a folder of the game's files dumped from a console (`base/`, `updates/<version>/`, `dlc/`; `base/romfs` may be left out when an update has its RomFS, as nxnative's `scripts/pack_dump.py` lists them), or one NUP container (a `.nup` file, `scripts/pack_nup.py`, also one with only standalone updates and no base game). A dump and a NUP need no `prod.keys` and convert only a game nxnative has a profile for
 
 ## Build and install
 
@@ -104,7 +104,7 @@ The pages:
 - **Convert**: the queue of game folders. A dropped or chosen folder opens the Convert sheet first: the platforms (Mac, iPhone & iPad, or both, a job each),
   the language, Survey only for a game with no profile, and in Advanced the version, app name, bundle ID and damaged files; each game also offers Port
   with an Agent… there. Nothing is queued or started until Convert, and the sheet remembers the platforms. A folder is scanned the way the script scans it (title ID, versions, DLC), then matched with nxnative's profiles: a
-  tested version, an untested version, or no profile. Each game has its options (what to make, language, version, app name, bundle ID, damaged files), its stages with counts and an estimate of the time left (a stage that rebuilds the shader libraries after nxnative or the profile changed says so), and the log.
+  tested version, an untested version, or no profile. Each game has its options (what to make, language, version, app name, bundle ID, damaged files), its stages with counts and an estimate of the time left (a stage that rebuilds the shader libraries after nxnative or the profile changed says so, and one that finished without what it makes, such as a pipeline archive, shows a warning while the build goes on), and the log.
 - **Library**: the nxnative game apps in the install folder, `/Applications` and `~/Applications`, and the games prepared as Xcode projects. Each shows the
   nxnative commit that built it and how far the checkout has moved since, and can be rebuilt with the current checkout. **Convert for iPhone & iPad…**
   (or **Convert for Mac…**) makes the game for the other platform too, beside the one there is. A game app's settings are under

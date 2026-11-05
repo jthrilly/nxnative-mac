@@ -23,12 +23,13 @@ public struct NSPFolderScan: Sendable, Equatable {
     public var warnings: [String]
     public var isDump = false   // the game's files, not packages: base, updates and DLC are folders
     public var isNup = false    // one NUP container: base, updates and DLC are its packages
+    public var hasBaseVersion = true   // false: a NUP with no base game (standalone updates), which has no v0
 
     /// A dump or a NUP: its files are not encrypted, so the script needs no prod.keys, and it packs only a game with a profile (the survey reads NSPs)
     public var isUnencrypted: Bool { isDump || isNup }
 
     public var isConvertible: Bool { errors.isEmpty && base != nil }
-    public var versions: [Int] { Array(Set([0] + updates.compactMap(\.version))).sorted() }
+    public var versions: [Int] { Array(Set((hasBaseVersion ? [0] : []) + updates.compactMap(\.version))).sorted() }
     public var newestVersion: Int { versions.last ?? 0 }
     public var totalBytes: Int64 { files.reduce(0) { $0 + $1.size } }
     public var titleIDString: String? { applicationID.map(NSPScanner.hex16) }
@@ -159,18 +160,22 @@ public enum NSPScanner {
     }
 
     /// pack_nup.scan from the table of contents (NUP SPEC v1): the superblock (0x80: the TOC's offset at 8, the package count at 72), the TOC (0x30) and its package
-    /// records (0x40: title ID at 0, version at 20, kind at 24: 0 base, 1 update, 2 DLC). The title ID is the base package's, else an update's (a base that is an empty
-    /// placeholder has title ID 0); the script checks it against main.npdm and every file against its SHA-256
+    /// records (0x40: title ID at 0, ExeFS folder at 12, version at 20, kind at 24: 0 base, 1 update, 2 DLC, flags at 25). The title ID is the base package's, else an
+    /// update's: a NUP may have no base game (updates marked standalone) or an empty base record, and then no v0. The script checks the title ID against main.npdm and
+    /// every file against its SHA-256
     static func scanNup(_ nup: URL, folder: URL) -> NSPFolderScan {
         var scan = NSPFolderScan(folder: folder, files: [], applicationID: nil, base: nil, updates: [], dlc: [], errors: [], warnings: [], isNup: true)
         let size = fileSize(nup)
         guard let packages = nupPackages(nup) else { scan.errors.append("\(nup.lastPathComponent) is not a NUP this app can read"); return scan }
         let bases = packages.filter { $0.kind == 0 }, updates = packages.filter { $0.kind == 1 }
-        guard bases.count == 1 else {
-            scan.errors.append(bases.isEmpty ? "\(nup.lastPathComponent) has no base game: pack the base game and its update into one NUP" : "\(nup.lastPathComponent) has \(bases.count) base packages")
+        guard bases.count <= 1 else { scan.errors.append("\(nup.lastPathComponent) has \(bases.count) base packages"); return scan }
+        if bases.isEmpty && (updates.isEmpty || updates.contains { !$0.standalone }) {
+            scan.errors.append("\(nup.lastPathComponent) has no base game: pack the base game and its update into one NUP, or mark its updates standalone_update")
             return scan
         }
-        let app = bases[0].titleID != 0 ? bases[0].titleID : (updates.first?.titleID ?? 0) & ~0xFFF
+        let base = bases.first.flatMap { $0.titleID != 0 && $0.exefs != 0xFFFF_FFFF ? $0 : nil }   // an empty base record (no code, title ID 0) is no base game
+        scan.hasBaseVersion = base != nil
+        let app = base?.titleID ?? (updates.first?.titleID ?? 0) & ~0xFFF
         guard app != 0, app & 0xFFF == 0 else { scan.errors.append("\(nup.lastPathComponent): \(hex16(app)) is not a base title ID"); return scan }
         scan.applicationID = app
         scan.base = NSPFile(url: nup, titleID: app, version: nil, kind: .base, size: size, compressed: false)
@@ -180,7 +185,7 @@ public enum NSPScanner {
         return scan
     }
 
-    static func nupPackages(_ url: URL) -> [(titleID: UInt64, version: UInt32, kind: UInt8)]? {
+    static func nupPackages(_ url: URL) -> [(titleID: UInt64, version: UInt32, kind: UInt8, exefs: UInt32, standalone: Bool)]? {
         guard let h = FileHandle(forReadingAtPath: url.path) else { return nil }
         defer { try? h.close() }
         guard let head = try? h.read(upToCount: 0x80), head.count == 0x80, head.prefix(3) == Data("NUP".utf8), head[head.startIndex + 3] == 1 else { return nil }
@@ -189,7 +194,7 @@ public enum NSPScanner {
               toc.count == 0x30 + count * 0x40, toc.prefix(4) == Data([0x54, 0x4F, 0x43, 0x01]), Int(u32(toc, 4)) == count else { return nil }
         return (0..<count).map { i in
             let p = 0x30 + i * 0x40
-            return (u64(toc, p), u32(toc, p + 20), toc[toc.startIndex + p + 24])
+            return (u64(toc, p), u32(toc, p + 20), toc[toc.startIndex + p + 24], u32(toc, p + 12), toc[toc.startIndex + p + 25] & 1 != 0)   // flags bit 0: STANDALONE
         }
     }
 
