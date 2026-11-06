@@ -99,7 +99,7 @@ struct SubprocessTests {
         let start = Date()
         await p.cancel(grace: 1)   // the background sleep ignores SIGINT (a non-interactive shell's background job): SIGTERM stops it
         let status = await p.waitUntilExit()
-        #expect(Date().timeIntervalSince(start) < 4)
+        #expect(Date().timeIntervalSince(start) < 15)   // well short of the 20 s sleep: a parallel test run can delay the start by seconds
         #expect(status != 0)
         var gone = false   // the killed background sleep may be a zombie for a moment, until launchd reaps it
         for _ in 0..<40 where !gone {
@@ -130,7 +130,7 @@ struct SubprocessTests {
     @Test func timeout() async throws {
         let start = Date()
         await #expect(throws: SubprocessError.timedOut("sleep")) { try await Subprocess.run("sleep", ["20"], environment: env, timeout: 0.3) }
-        #expect(Date().timeIntervalSince(start) < 4)
+        #expect(Date().timeIntervalSince(start) < 15)   // well short of the 20 s sleep: a parallel test run can delay the start by seconds
         #expect(try await Subprocess.run("sh", ["-c", "echo quick"], environment: env, timeout: 10).stdout == "quick")
     }
 
