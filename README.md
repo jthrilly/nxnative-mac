@@ -22,7 +22,7 @@ When the app needs more from nxnative, that piece is an issue or a small PR ther
 - Xcode 27 (or a Swift 6.4 toolchain with the macOS 27 SDK) to build the app
 - An nxnative checkout new enough to have the script's `--platform mac-app` and `--progress json`. The app's Setup page checks this, and the nxnative page can
   download a checkout.
-- The game files (NSP, XCI, NSZ or XCZ) and the `prod.keys` of a Switch you own, or a folder of the game's files dumped from a console (`base/`, `updates/<version>/`, `dlc/`; `base/romfs` may be left out when an update has its RomFS, as nxnative's `scripts/pack_dump.py` lists them), or one NUP container (a `.nup` file, `scripts/pack_nup.py`, also one with only standalone updates and no base game). A dump and a NUP need no `prod.keys` and convert only a game nxnative has a profile for
+- The game files (NSP, XCI, NSZ or XCZ) and the `prod.keys` of a Switch you own, or a folder of the game's files dumped from a console (`base/`, or `exefs/` and `romfs/` directly in the folder as `nup extract` writes them, `updates/<version>/`, `dlc/`; `base/romfs` may be left out when an update has its RomFS, and `base/` when an update's folder holds its code and RomFS, as nxnative's `scripts/pack_dump.py` lists them), or one NUP container (a `.nup` file, `scripts/pack_nup.py`, also one with only standalone updates and no base game). A dump and a NUP need no `prod.keys`; a game nxnative has no profile for is surveyed from them and gets a provisional profile, as from NSPs
 
 ## Build and install
 

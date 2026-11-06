@@ -1,8 +1,8 @@
 // What a dropped folder holds: its game files grouped as the NSP script groups them (scripts/build_ipa_from_nsp.py scan_nsps, title_of, version_of), so a folder the script
 // would refuse is shown as such before a conversion starts. The title ID comes from the ticket inside a PFS0 (NSP / NSZ), else from a "[0100…]" tag in the file name.
-// A folder of the game's files instead (a dump: base/, updates/<version>/, dlc/<DLC title ID>/, scripts/pack_dump.py) is scanned as pack_dump.scan reads it: it needs no
-// prod.keys, and the script packs it only for a game with a profile. So does a folder holding one NUP container (a .nup file, scripts/pack_nup.py): its packages are read from
-// its table of contents
+// A folder of the game's files instead (a dump: base/ or exefs/ and romfs/ directly, updates/<version>/, dlc/<DLC title ID>/, scripts/pack_dump.py) is scanned as pack_dump.scan
+// reads it: it needs no prod.keys. Neither does a folder holding one NUP container (a .nup file, scripts/pack_nup.py): its packages are read from its table of contents. A game
+// with no profile is surveyed from either, as from NSPs
 import Foundation
 
 public enum NSPKind: String, Sendable, Codable { case base, update, dlc, unknown }
@@ -112,11 +112,34 @@ public enum NSPScanner {
         return scan
     }
 
-    /// pack_dump.is_dump: base/exefs/main.npdm, and base/romfs or an update's romfs (an update's RomFS is whole, so the base's may be left out)
+    /// pack_dump.has_code / is_version: a version's folder (base/, updates/<version>/) holds exefs/main.npdm, and a whole version its romfs/ beside it
+    static func hasCode(_ src: URL) -> Bool { isRegularFile(src.appendingPathComponent("exefs/main.npdm")) }
+    static func isVersion(_ src: URL) -> Bool { hasCode(src) && isDirectory(src.appendingPathComponent("romfs")) }
+
+    /// pack_dump.updates: updates/<version>/ by its decimal title version
+    static func dumpUpdates(_ folder: URL) -> [(version: Int, url: URL)] {
+        subfolders(of: folder.appendingPathComponent("updates")).compactMap { url in
+            let name = url.lastPathComponent
+            guard !name.isEmpty, name.allSatisfy({ $0.isASCII && $0.isNumber }), let v = Int(name) else { return nil }
+            return (v, url)
+        }.sorted { $0.version < $1.version }
+    }
+
+    /// pack_dump.base_of: base/ with its code, else the folder itself when exefs/ and romfs/ sit directly in it (as `nup extract` writes them), else none
+    static func dumpBase(_ folder: URL) -> URL? {
+        let base = folder.appendingPathComponent("base", isDirectory: true)
+        if hasCode(base) { return base }
+        return isVersion(folder) ? folder : nil
+    }
+
+    /// pack_dump.is_dump: a base game's code with a RomFS beside it or in an update (an update's RomFS is whole, so the base's may be left out),
+    /// or no base game and an update with its code and RomFS (the update's folder is the whole game)
     public static func isDump(_ folder: URL) -> Bool {
-        isRegularFile(folder.appendingPathComponent("base/exefs/main.npdm"))
-            && (isDirectory(folder.appendingPathComponent("base/romfs"))
-                || subfolders(of: folder.appendingPathComponent("updates")).contains { isDirectory($0.appendingPathComponent("romfs")) })
+        let ups = dumpUpdates(folder)
+        if let base = dumpBase(folder) {
+            return isDirectory(base.appendingPathComponent("romfs")) || ups.contains { isDirectory($0.url.appendingPathComponent("romfs")) }
+        }
+        return ups.contains { isVersion($0.url) }
     }
 
     /// pack_dump.scan: the title ID is main.npdm's program ID, an update is updates/<version> (a decimal title version), a DLC dlc/<its title ID in hex>
@@ -125,24 +148,24 @@ public enum NSPScanner {
             NSPFile(url: url, titleID: titleID, version: version, kind: kind, size: 0, compressed: false)
         }
         var scan = NSPFolderScan(folder: folder, files: [], applicationID: nil, base: nil, updates: [], dlc: [], errors: [], warnings: [], isDump: true)
-        guard let app = programID(npdm: folder.appendingPathComponent("base/exefs/main.npdm")) else {
-            scan.errors.append("\(folder.path): base/exefs/main.npdm is not an NPDM with a program ID"); return scan
+        let ups = dumpUpdates(folder), base = dumpBase(folder)
+        guard let code = base ?? ups.last(where: { isVersion($0.url) })?.url else { scan.errors.append("\(folder.path): no base game and no whole update"); return scan }
+        let npdm = code.appendingPathComponent("exefs/main.npdm")
+        guard let app = programID(npdm: npdm) else {
+            scan.errors.append("\(npdm.path): not an NPDM with a program ID"); return scan
         }
         guard app & 0xFFF == 0 else { scan.errors.append("\(folder.path): base program ID \(hex16(app)) is not a base title ID"); return scan }
         scan.applicationID = app
-        scan.base = entry(folder.appendingPathComponent("base", isDirectory: true), .base, titleID: app)
-        scan.updates = subfolders(of: folder.appendingPathComponent("updates")).compactMap { url in
-            let name = url.lastPathComponent
-            guard !name.isEmpty, name.allSatisfy({ $0.isASCII && $0.isNumber }), let v = Int(name) else { return nil }
-            return entry(url, .update, titleID: app | 0x800, version: v)
-        }.sorted { ($0.version ?? 0) < ($1.version ?? 0) }
+        scan.hasBaseVersion = base != nil   // no base/: an update's folder is the whole game, and there is no v0
+        scan.base = entry(base ?? folder, .base, titleID: app)
+        scan.updates = ups.map { entry($0.url, .update, titleID: app | 0x800, version: $0.version) }
         for url in subfolders(of: folder.appendingPathComponent("dlc")) {
             guard let tid = UInt64(url.lastPathComponent, radix: 16), tid > app + 0x1000, tid - app - 0x1000 <= 2000 else {
                 scan.errors.append("\(url.path): not a DLC title ID of \(hex16(app))"); continue
             }
             scan.dlc.append(entry(url, .dlc, titleID: tid))
         }
-        scan.files = [scan.base].compactMap { $0 } + scan.updates + scan.dlc
+        scan.files = (base == nil ? [] : [scan.base].compactMap { $0 }) + scan.updates + scan.dlc
         return scan
     }
 
@@ -242,15 +265,23 @@ public enum NSPScanner {
             guard FileManager.default.fileExists(atPath: u.path, isDirectory: &isDir) else { continue }
             if !isDir.boolValue {
                 if fileExtensions.contains(u.pathExtension) || u.pathExtension == "nup" && isNup(u) { add(u.deletingLastPathComponent()) }
+            } else if let dump = enclosingDump(u) {
+                add(dump)   // a folder inside a dump: base/, exefs/, romfs/, updates/, updates/<version>/, dlc/
             } else if !gameFiles(in: u).isEmpty || !nupFiles(in: u).isEmpty || isDump(u) {
                 add(u)
-            } else if ["base", "updates", "dlc"].contains(u.lastPathComponent), isDump(u.deletingLastPathComponent()) {
-                add(u.deletingLastPathComponent())   // a folder inside a dump
             } else {
                 for sub in subfolders(of: u) where !gameFiles(in: sub).isEmpty || !nupFiles(in: sub).isEmpty || isDump(sub) { add(sub) }
             }
         }
         return out
+    }
+
+    /// The dump a folder is part of, when it is one of a dump's own folders (an update's folder is also a dump on its own, as the whole game)
+    static func enclosingDump(_ u: URL) -> URL? {
+        let parent = u.deletingLastPathComponent(), name = u.lastPathComponent
+        if ["base", "updates", "dlc", "exefs", "romfs"].contains(name), isDump(parent) { return parent }
+        if parent.lastPathComponent == "updates", isDump(parent.deletingLastPathComponent()) { return parent.deletingLastPathComponent() }
+        return nil
     }
 
     static func isHex(_ c: Character) -> Bool { c.isASCII && c.isHexDigit }

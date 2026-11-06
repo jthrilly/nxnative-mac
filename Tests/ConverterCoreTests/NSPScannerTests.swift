@@ -217,6 +217,28 @@ struct NSPScannerTests {
         #expect(s.isDump && s.isConvertible && s.versions == [0, 458752])
     }
 
+    @Test func dumpWithExeFSAndRomFSDirectlyInTheFolder() throws {   // pack_dump.base_of: as `nup extract` writes them, they count as base/
+        let t = try TempDir(); defer { t.remove() }
+        try t.file("exefs/main.npdm", Self.npdm(app))
+        try t.file("romfs/data.bin")
+        let s = NSPScanner.scan(folder: t.url)
+        #expect(s.isDump && s.isConvertible && s.errors == [])
+        #expect(s.titleIDString == "0100ABCD00000000" && s.versions == [0])
+        #expect(NSPScanner.gameFolders(from: [t.url.appendingPathComponent("exefs")]).map(\.path) == [t.url.standardized.path])
+    }
+
+    @Test func dumpOfAnUpdateAlone() throws {   // pack_dump.is_dump: no base/, an update's folder with its code and RomFS is the whole game
+        let t = try TempDir(); defer { t.remove() }
+        try t.file("updates/131072/exefs/main.npdm", Self.npdm(app))
+        #expect(!NSPScanner.isDump(t.url))
+        try t.file("updates/131072/romfs/data.bin")
+        let s = NSPScanner.scan(folder: t.url)
+        #expect(s.isDump && s.isConvertible && s.errors == [])
+        #expect(s.titleIDString == "0100ABCD00000000" && s.versions == [131072] && !s.hasBaseVersion)
+        #expect(s.files.map(\.kind) == [.update])
+        #expect(NSPScanner.gameFolders(from: [t.url.appendingPathComponent("updates/131072")]).map(\.path) == [t.url.standardized.path])
+    }
+
     /// A NUP with only its superblock, TOC header and package records (pack_nup.py's SUPER, TOC and PKG layouts)
     static func nup(_ packages: [(titleID: UInt64, version: UInt32, kind: UInt8)], standalone: Bool = false) -> Data {
         var d = Data(count: 0x80 + 0x30 + packages.count * 0x40)
