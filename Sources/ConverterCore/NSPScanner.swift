@@ -105,8 +105,9 @@ public enum NSPScanner {
             if f.base == nil { scan.errors.append("no base game NSP found in \(folder.path) (title ID \(hex16(f.app)))") }
             let loose = scan.updates.filter { $0.version == nil }
             if !loose.isEmpty {
+                // the script reads every package's version from its content metas, never from its name (nx_extract --contents), so these are packed too
                 scan.warnings.append("update without a version tag ([v<N>]) in its name: " + loose.map(\.url.lastPathComponent).joined(separator: ", ")
-                                     + (scan.updates.count == 1 ? " (taken for the newest update the game profile registers)" : " (left out)"))
+                                     + " (its version is read from the package when it converts)")
             }
         }
         return scan

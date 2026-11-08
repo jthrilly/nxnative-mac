@@ -94,7 +94,7 @@ How it runs:
 
 - **Environment:** the login shell's environment plus the script's tool folders. An app opened from Finder gets no shell `PATH`.
 - **Process group:** the script runs in one of its own. Cancel sends the group SIGINT, then SIGTERM and SIGKILL.
-- **Progress:** the script's JSON events drive the stage list and the log. An event the guide doesn't list is ignored.
+- **Progress:** the script's JSON events drive the stage list and the log, and its `game` event gives the library the app's name and version. An event the guide doesn't list is ignored.
 - **Result:** the exit status. 0 is a finished build, and the app is at the `-o` path, named after the App name option or the game (`:` and `/` become ` - `,
   as the script names it). 1 is an error, and the newest `[RED] ` message of the stage that failed says which. 2 is an argument the script refused, and the
   app shows what it wrote on stderr. 130 is a cancel.

@@ -4,6 +4,17 @@ import Testing
 @testable import ConverterCore
 
 struct BuildEventTests {
+    @Test func game() {   // docs/frontends.md: once, before the shader stages; out is null for --prepare-xcode, icon for a game without one
+        #expect(BuildEvent.decode(#"{"ev": "game", "title_id": "0400486024DEC000", "name": "The Legend of Zelda", "version": "1.0", "bundle_id": "org.nxnative.0400486024dec000", "out": "/b/Zelda.app", "icon": "/b/x/extract/v131072/icon.jpg", "t": 1.0}"#)
+                == .game(GameInfo(titleID: "0400486024DEC000", name: "The Legend of Zelda", version: "1.0", bundleID: "org.nxnative.0400486024dec000",
+                                  out: "/b/Zelda.app", icon: "/b/x/extract/v131072/icon.jpg")))
+        #expect(BuildEvent.decode(#"{"ev": "game", "title_id": "0400486024DEC000", "name": "Zelda", "version": "1.0", "bundle_id": "b", "out": null, "icon": null, "t": 1.0}"#)
+                == .game(GameInfo(titleID: "0400486024DEC000", name: "Zelda", version: "1.0", bundleID: "b")))
+        var state = BuildState()
+        state.apply(.game(GameInfo(titleID: "0400486024DEC000", name: "Zelda", version: "1.0", bundleID: "b")), at: Date())
+        #expect(state.game?.name == "Zelda" && state.log.isEmpty)
+    }
+
     @Test func stage() {
         #expect(BuildEvent.decode(#"{"ev": "stage", "k": 1, "n": 2, "name": "extract v327680", "step": "", "t": 1792936806.777}"#)
                 == .stage(k: 1, n: 2, name: "extract v327680", step: ""))
@@ -39,7 +50,6 @@ struct BuildEventTests {
     }
 
     @Test func eventsTheGuidanceDoesNotListAreIgnored() {   // docs/frontends.md lists stage, step, progress, stage_end and say; anything else is unknown
-        #expect(BuildEvent.decode(#"{"ev": "game", "title_id": "010015100B514000", "out": "/G/W.app", "t": 1.0}"#) == .unknown("game"))
         #expect(BuildEvent.decode(#"{"ev": "result", "ok": true, "path": "/G/W.app", "t": 1.0}"#) == .unknown("result"))
     }
 

@@ -148,8 +148,10 @@ extension AppModel {
         case .noProfile: profile = nil; version = nil; derived = false
         }
         let status: ConversionStatus = state == .succeeded ? .succeeded : state == .cancelled ? .cancelled : .failed
+        let game = job.build.game   // the script's own name for the app, and its version where no tested profile row gives one, when it got that far
         appendRecord(ConversionRecord(
-            id: UUID(), folder: job.folder.path, titleID: job.titleID, gameName: job.name, gameVersion: version,
+            id: UUID(), folder: job.folder.path, titleID: job.titleID, gameName: nonEmpty(game?.name) ?? job.name,
+            gameVersion: version ?? nonEmpty(game?.version).flatMap { $0 == "?" ? nil : $0 },
             package: nonEmpty(job.options.package), profile: profile,
             provisional: job.match == .noProfile, derived: derived,
             builtAppPath: job.builtApp?.path, installedAppPath: job.installedApp?.path, xcodeProjectPath: job.xcodeProject?.path,

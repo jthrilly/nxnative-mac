@@ -25,6 +25,7 @@ public struct BuildState: Sendable, Equatable {
     public private(set) var log: [LogLine] = []
     private(set) var lastWarning: String?
     public private(set) var succeeded = false   // the script exited 0
+    public private(set) var game: GameInfo?   // the app the build writes: its name, version and bundle ID as the script settled them
     private var planStart = 0   // index in stages of the latest plan's first stage
     private var nextLogID = 0
 
@@ -63,6 +64,8 @@ public struct BuildState: Sendable, Equatable {
         case let .shadersStale(stale):
             guard let i = runningIndex else { return }
             stages[i].shadersStale = stale   // the say that follows tells the log
+        case let .game(info):
+            game = info   // the say that follows tells the log
         case let .say(message):
             let warning = Self.warningText(message)
             if let warning { lastWarning = warning }

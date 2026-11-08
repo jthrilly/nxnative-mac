@@ -44,7 +44,7 @@ public enum GameProfiles {
     public static func match(_ scan: NSPFolderScan, in profiles: [GameProfile], package: String = "") -> ProfileMatch {
         guard let app = scan.applicationID, let profile = profiles.first(where: { $0.titleID == app }) else { return .noProfile }
         var have = Set((scan.hasBaseVersion ? ["v0"] : []) + scan.updates.compactMap { $0.version.map { "v\($0)" } })
-        // a single update without a [v<N>] tag is taken for the newest update the profile registers (its build IDs are checked once extracted)
+        // a single update without a [v<N>] tag is shown as the newest update the profile registers: a guess for the sheet, the script reads its version from the package
         let registered = profile.builds.map(\.version).filter { $0 != "v0" }.sorted { versionNumber($0) < versionNumber($1) }
         if scan.updates.count == 1, scan.updates[0].version == nil, let newest = registered.last { have.insert(newest) }
         let asked = package.trimmingCharacters(in: .whitespaces)

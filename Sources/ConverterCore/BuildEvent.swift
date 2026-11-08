@@ -1,6 +1,17 @@
-// The NSP script's `--progress json` events (scripts/build_ipa_from_nsp.py, Progress._json): one JSON object per stdout line, each with "ev" and "t". These six are
+// The NSP script's `--progress json` events (scripts/build_ipa_from_nsp.py, Progress._json): one JSON object per stdout line, each with "ev" and "t". These seven are
 // the ones nxnative's front-end guidance lists (docs/frontends.md, Building: the NSP script); any other is ignored, so a newer script's events do no harm
 import Foundation
+
+/// The app the build will write, once its name, version and bundle ID are settled (`game`, before the shader stages; none for --platform mac). `out` is nil for
+/// --prepare-xcode, `icon` when the game has none (a dump); an IPA build without --keep-extracted deletes the extraction the icon is in
+public struct GameInfo: Sendable, Equatable {
+    public var titleID: String; public var name: String; public var version: String; public var bundleID: String
+    public var out: String?; public var icon: String?
+
+    public init(titleID: String, name: String, version: String, bundleID: String, out: String? = nil, icon: String? = nil) {
+        self.titleID = titleID; self.name = name; self.version = version; self.bundleID = bundleID; self.out = out; self.icon = icon
+    }
+}
 
 public struct ProgressSample: Sendable, Equatable {
     public var k: Int; public var name: String; public var step: String
@@ -38,6 +49,7 @@ public enum BuildEvent: Sendable, Equatable {
     case progress(ProgressSample)
     case stageEnd(k: Int, name: String, ok: Bool, summary: String, elapsed: Double, warn: Bool = false)   // warn: finished without what it makes (the build goes on)
     case shadersStale(ShadersStale)
+    case game(GameInfo)
     case say(String)
     case unknown(String)
 
@@ -58,6 +70,9 @@ public enum BuildEvent: Sendable, Equatable {
                                                warn: f.bool("warn"))
         case "shaders_stale":
             return .shadersStale(ShadersStale(reason: ShadersStale.Reason(rawValue: f.string("reason")) ?? .other, old: f.string("old"), new: f.string("new"), count: f.int("count")))
+        case "game":
+            return .game(GameInfo(titleID: f.string("title_id"), name: f.string("name"), version: f.string("version"), bundleID: f.string("bundle_id"),
+                                  out: f.optionalString("out"), icon: f.optionalString("icon")))
         case "say": return .say(f.string("msg"))
         default: return .unknown(ev)
         }
@@ -68,6 +83,8 @@ public enum BuildEvent: Sendable, Equatable {
 private struct Fields {
     let o: [String: Any]
     init(_ o: [String: Any]) { self.o = o }
+
+    func optionalString(_ key: String) -> String? { (o[key] as? String).flatMap { $0.isEmpty ? nil : $0 } }
 
     func string(_ key: String) -> String {
         if let s = o[key] as? String { return s }
