@@ -7,7 +7,7 @@ import SwiftUI
 
 /// A game folder the sheet offers, scanned
 struct PendingGame: Identifiable {
-    var id: URL { folder }
+    var id: String { folder.path + (scan.chosenGame.map { "#" + NSPScanner.hex16($0) } ?? "") }   // a folder that holds two games is a row per game
     let folder: URL
     let scan: NSPFolderScan
 }
@@ -30,7 +30,9 @@ struct ConvertRequest: Identifiable {
         return saved.isEmpty ? [settings.defaultOutput] : saved
     }
 
-    func match(_ game: PendingGame, package: String) -> ProfileMatch { GameProfiles.match(game.scan, in: profiles, package: package) }
+    func match(_ game: PendingGame, package: String, titleID: String = "") -> ProfileMatch {
+        GameProfiles.match(game.scan.packing(titleID: titleID), in: profiles, package: package)
+    }
 }
 
 struct ConvertSheet: View {
@@ -63,7 +65,7 @@ struct ConvertSheet: View {
             }
             Section("Options") {
                 LanguagePicker("Language", selection: $options.language)
-                if games.contains(where: { request.match($0, package: options.package) == .noProfile }) {
+                if games.contains(where: { request.match($0, package: options.package, titleID: options.titleID) == .noProfile }) {
                     Toggle(isOn: $surveyOnly) {
                         Text("Survey only")
                         Text(games.count == 1 ? "This game has no profile yet: write its survey and provisional profile, and stop there."
@@ -80,13 +82,20 @@ struct ConvertSheet: View {
                         }
                         TextField("App name", text: $options.appName, prompt: Text(game.scan.displayName))
                         TextField("Bundle ID", text: $options.bundleID, prompt: Text("Automatic"))
+                        if game.scan.chosenGame == nil {
+                            TextField(text: $options.titleID, prompt: Text(game.scan.titleIDString ?? "Automatic")) {
+                                Text("Title ID")
+                                Text("For a cartridge that holds two games: the base game ID of the one to convert, 16 hex digits.")
+                            }
+                            if !titleIDValid { Text("A title ID is 16 hex digits ending in 000.").font(.caption).foregroundStyle(.red) }
+                        }
                     }
                     Toggle("Allow damaged game files", isOn: $options.allowDamaged)
                 }
             }
             Section(games.count == 1 ? "Game" : "\(games.count) Games") {
                 ForEach(games) { game in
-                    GameRow(game: game, match: request.match(game, package: options.package)) {
+                    GameRow(game: game, match: request.match(game, package: options.package, titleID: options.titleID)) {
                         dismiss()
                         model.offerPort(for: game)
                     }
@@ -117,7 +126,8 @@ struct ConvertSheet: View {
 
     private var games: [PendingGame] { request.games }
 
-    private func canConvert(_ game: PendingGame) -> Bool { game.scan.isConvertible }
+    private func canConvert(_ game: PendingGame) -> Bool { game.scan.isConvertible && titleIDValid }
+    private var titleIDValid: Bool { options.titleID.isEmpty || NSPScanner.titleID(typed: options.titleID) != nil }
     private var single: PendingGame? { games.count == 1 ? games.first : nil }
 
     private var xcodeNote: String {

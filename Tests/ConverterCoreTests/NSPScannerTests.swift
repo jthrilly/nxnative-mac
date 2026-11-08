@@ -74,6 +74,31 @@ struct NSPScannerTests {
         #expect(s.displayName == t.url.lastPathComponent)
     }
 
+    @Test func typedTitleID() throws {   // a cartridge's second game, which the scan of one XCI cannot see: --title-id names it
+        let t = try TempDir(); defer { t.remove() }
+        try t.file("Galaxy [0100ABCD00000000].xci", Data(repeating: 1, count: 8))
+        let s = NSPScanner.scan(folder: t.url, game: 0x0100_1111_0000_0000)
+        #expect(s.isConvertible && s.titleIDString == "0100ABCD00000000")
+        #expect(s.packing(titleID: "0100111100000000").titleIDString == "0100111100000000")
+        #expect(s.packing(titleID: "").titleIDString == "0100ABCD00000000" && s.packing(titleID: "0100111100000800") == s)
+        #expect(NSPScanner.titleID(typed: " 0100111100000000 ") == 0x0100_1111_0000_0000)
+        #expect(NSPScanner.titleID(typed: "0100") == nil && NSPScanner.titleID(typed: "010011110000000G") == nil)
+    }
+
+    @Test func twoGamesSplitIntoOneScanEach() throws {   // the script's --title-id: each game's packages only
+        let t = try TempDir(); defer { t.remove() }
+        let other: UInt64 = 0x0100_1111_0000_0000
+        try t.file("A.nsp", pfs0([ticket(app)]))
+        try t.file("A update [v65536].nsp", pfs0([ticket(app | 0x800)]))
+        try t.file("B.nsp", pfs0([ticket(other)]))
+        #expect(NSPScanner.scan(folder: t.url).games == [app, other])
+        let games = NSPScanner.scanGames(folder: t.url)
+        #expect(games.map(\.chosenGame) == [app, other] && games.allSatisfy { $0.isConvertible && $0.errors.isEmpty })
+        #expect(games[0].files.map(\.url.lastPathComponent).sorted() == ["A update [v65536].nsp", "A.nsp"] && games[0].versions == [0, 65536])
+        #expect(games[1].files.map(\.url.lastPathComponent) == ["B.nsp"] && games[1].titleIDString == "0100111100000000")
+        #expect(NSPScanner.scan(folder: t.url, game: 0x0100_2222_0000_0000).errors.count == 1)
+    }
+
     @Test func skippedFiles() throws {
         let t = try TempDir(); defer { t.remove() }
         try t.file("Game [0100ABCD00000000].nsp", pfs0([ticket(app)]))

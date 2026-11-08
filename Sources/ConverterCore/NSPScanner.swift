@@ -24,6 +24,8 @@ public struct NSPFolderScan: Sendable, Equatable {
     public var isDump = false   // the game's files, not packages: base, updates and DLC are folders
     public var isNup = false    // one NUP container: base, updates and DLC are its packages
     public var hasBaseVersion = true   // false: a NUP with no base game (standalone updates), which has no v0
+    public var games: [UInt64] = []    // the folder's games when it holds several (their title IDs, in the folder's order)
+    public var chosenGame: UInt64?     // the one of them this scan is of, packed with --title-id
 
     /// A dump or a NUP: its files are not encrypted, so the script needs no prod.keys, and it packs only a game with a profile (the survey reads NSPs)
     public var isUnencrypted: Bool { isDump || isNup }
@@ -33,6 +35,15 @@ public struct NSPFolderScan: Sendable, Equatable {
     public var newestVersion: Int { versions.last ?? 0 }
     public var totalBytes: Int64 { files.reduce(0) { $0 + $1.size } }
     public var titleIDString: String? { applicationID.map(NSPScanner.hex16) }
+
+    /// The scan as the script packs it with --title-id <titleID> (a typed Title ID: a cartridge holding two games, whose second the scan cannot see); unchanged
+    /// for an empty or invalid one. The versions stay the folder's: the script reads the chosen game's from its content metas
+    public func packing(titleID: String) -> NSPFolderScan {
+        guard let id = NSPScanner.titleID(typed: titleID), id != applicationID else { return self }
+        var s = self
+        s.applicationID = id; s.chosenGame = id
+        return s
+    }
 
     public var displayName: String {
         guard let base, !isUnencrypted else { return folder.lastPathComponent }
@@ -54,7 +65,21 @@ public enum NSPScanner {
     static let compressed = ["nsz": "nsp", "xcz": "xci"]   // nsz's compressed NSP / XCI and what nsz -D makes of them
     static let headerLimit = 8 << 20
 
-    public static func scan(folder: URL) -> NSPFolderScan {
+    /// A Title ID as --title-id takes it: 16 hex digits, the base game's (…000); nil otherwise
+    public static func titleID(typed: String) -> UInt64? {
+        let t = typed.trimmingCharacters(in: .whitespaces)
+        guard t.count == 16, t.allSatisfy(isHex), let id = UInt64(t, radix: 16), id & 0xFFF == 0 else { return nil }
+        return id
+    }
+
+    /// One scan per game: a folder that holds several (a game's NSPs beside another's) gives a scan of each, chosen with --title-id
+    public static func scanGames(folder: URL) -> [NSPFolderScan] {
+        let all = scan(folder: folder)
+        guard all.games.count > 1 else { return [all] }
+        return all.games.map { scan(folder: folder, game: $0) }
+    }
+
+    public static func scan(folder: URL, game want: UInt64? = nil) -> NSPFolderScan {
         let folder = folder.standardized
         if gameFiles(in: folder).isEmpty {   // the script's nup_file, then dump_folder: a NUP or a dump with no package beside it
             let nups = nupFiles(in: folder)
@@ -94,10 +119,18 @@ public enum NSPScanner {
         var scan = NSPFolderScan(folder: folder, files: files, applicationID: nil, base: nil, updates: [], dlc: [], errors: [], warnings: warnings)
         if families.isEmpty {
             scan.errors.append(files.isEmpty ? "no NSP, XCI, NSZ or XCZ file in \(folder.path)" : "no NSP with a readable title ID in \(folder.path)")
-        } else if families.count > 1 {
+        } else if let want, families.count > 1, !families.contains(where: { $0.app == want }) {   // one game seen: a typed ID the scan cannot check (one XCI)
+            scan.errors.append("no game \(hex16(want)) in the folder, which holds " + families.map { hex16($0.app) }.joined(separator: ", "))
+        } else if families.count > 1 && want == nil {
+            scan.games = families.map(\.app)
             scan.errors.append("more than one game in the folder, keep one game per folder: " + families.map { hex16($0.app) }.joined(separator: ", "))
         } else {
-            let f = families[0]
+            let f = families.first { $0.app == want } ?? families[0]
+            if families.count > 1 {   // the script's scan_nsps with --title-id: this game's packages only
+                scan.games = families.map(\.app); scan.chosenGame = f.app
+                let mine = Set([f.base].compactMap { $0 } + f.updates + f.dlc)
+                scan.files = files.indices.filter(mine.contains).map { files[$0] }
+            }
             scan.applicationID = f.app
             scan.base = f.base.map { files[$0] }
             scan.updates = f.updates.map { files[$0] }.sorted { ($0.version ?? -1, $0.url.lastPathComponent) < ($1.version ?? -1, $1.url.lastPathComponent) }

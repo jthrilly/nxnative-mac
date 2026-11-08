@@ -50,10 +50,12 @@ enum JobState: Equatable {
         message = cannotConvert ? scan.errors.joined(separator: "\n") : nil
     }
 
-    var match: ProfileMatch { GameProfiles.match(scan, in: profiles, package: options.package) }
+    /// The scan as the script packs it: the game the Title ID option names, in a folder that holds two
+    var packed: NSPFolderScan { scan.packing(titleID: options.titleID) }
+    var match: ProfileMatch { GameProfiles.match(packed, in: profiles, package: options.package) }
 
     var name: String { scan.displayName }
-    var titleID: String? { scan.titleIDString }
+    var titleID: String? { packed.titleIDString }
     var isEditable: Bool { state == .queued }
     var canRetry: Bool { !cannotConvert && (state == .failed || state == .cancelled) }
     var canSurvey: Bool { !cannotConvert && match == .noProfile && (state == .queued || state.isFinished) }

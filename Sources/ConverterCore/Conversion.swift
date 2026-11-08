@@ -15,6 +15,7 @@ public struct ConversionOptions: Sendable, Equatable, Codable {
     public var appName: String = ""
     public var bundleID: String = ""
     public var allowDamaged: Bool = false
+    public var titleID: String = ""   // the game to pack when the folder holds several (--title-id): 16 hex digits
     public var signingIdentity: String = ""
     public var surveyOnly: Bool = false
     public var output: ConversionOutput = .macApp
@@ -29,6 +30,7 @@ public struct ConversionOptions: Sendable, Equatable, Codable {
         appName = c.lenient(String.self, .appName) ?? ""
         bundleID = c.lenient(String.self, .bundleID) ?? ""
         allowDamaged = c.lenient(Bool.self, .allowDamaged) ?? false
+        titleID = c.lenient(String.self, .titleID) ?? ""
         signingIdentity = c.lenient(String.self, .signingIdentity) ?? ""
         surveyOnly = c.lenient(Bool.self, .surveyOnly) ?? false
         output = c.lenient(ConversionOutput.self, .output) ?? .macApp
@@ -79,6 +81,7 @@ public enum ConversionCommand {
             args += [flag, value]
         }
         if options.allowDamaged { args.append("--allow-damaged") }
+        if !options.titleID.isEmpty { args += ["--title-id", options.titleID] }
         switch options.output {
         case .macApp: if !options.signingIdentity.isEmpty { args += ["--mac-sign", options.signingIdentity] }
         case .xcodeProject: if !teamID.isEmpty { args += ["--team-id", teamID] }

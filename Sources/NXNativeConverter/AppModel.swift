@@ -220,9 +220,9 @@ struct LibraryEntry: Identifiable {
         }
         Task {
             var games: [PendingGame] = []
-            for folder in folders {
-                let scan = await Task.detached { NSPScanner.scan(folder: folder) }.value
-                games.append(PendingGame(folder: folder, scan: scan))
+            for folder in folders {   // a folder that holds two games gives one of each
+                let scans = await Task.detached { NSPScanner.scanGames(folder: folder) }.value
+                games += scans.map { PendingGame(folder: folder, scan: $0) }
             }
             var options = preset ?? ConversionOptions()
             if preset == nil { options.language = settings.defaultLanguage; options.output = settings.defaultOutput }
@@ -243,10 +243,12 @@ struct LibraryEntry: Identifiable {
         page = .convert
         var first: ConversionJob?
         for game in request.games {
-            let survey = surveyOnly && request.match(game, package: options.package) == .noProfile
+            var opts = options
+            if let chosen = game.scan.chosenGame { opts.titleID = NSPScanner.hex16(chosen) }   // one of the folder's two games
+            else if request.games.count > 1 { opts.titleID = "" }   // the typed Title ID is a single game's option
+            let survey = surveyOnly && request.match(game, package: opts.package, titleID: opts.titleID) == .noProfile
             for output in survey ? Array(outputs.prefix(1)) : outputs
-            where !jobs.contains(where: { $0.folder == game.folder && $0.options.output == output && !$0.state.isFinished }) {
-                var opts = options
+            where !jobs.contains(where: { $0.folder == game.folder && $0.options.titleID == opts.titleID && $0.options.output == output && !$0.state.isFinished }) {
                 opts.output = output
                 opts.surveyOnly = survey
                 let job = ConversionJob(folder: game.folder, scan: game.scan, profiles: request.profiles, options: opts, repository: request.repository)
@@ -274,7 +276,7 @@ struct LibraryEntry: Identifiable {
         Task {
             var firstNew: UUID?
             for folder in folders {
-                if let existing = jobs.first(where: { $0.folder == folder && !$0.state.isFinished }) {
+                if let existing = jobs.first(where: { $0.folder == folder && $0.options.titleID == (options?.titleID ?? "") && !$0.state.isFinished }) {
                     switch QueueRules.reuse(existing: existing.repository, active: existing.state.isActive, requested: repository) {
                     case .keep: break
                     case .switchTo(let repo): existing.use(repository: repo, profiles: await profiles(of: repo))
@@ -286,7 +288,8 @@ struct LibraryEntry: Identifiable {
                     firstNew = firstNew ?? existing.id
                     continue
                 }
-                let scan = await Task.detached { NSPScanner.scan(folder: folder) }.value
+                let want = options.flatMap { NSPScanner.titleID(typed: $0.titleID) }   // a rebuild of one of a folder's two games
+                let scan = await Task.detached { NSPScanner.scan(folder: folder, game: want) }.value
                 let known = await profiles(of: repository)
                 var opts = options ?? ConversionOptions()
                 if options == nil { opts.language = settings.defaultLanguage; opts.output = settings.defaultOutput }
