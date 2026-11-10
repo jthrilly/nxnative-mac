@@ -4,6 +4,7 @@
 // Convert; Cancel leaves the queue as it was
 import ConverterCore
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// A game folder the sheet offers, scanned
 struct PendingGame: Identifiable {
@@ -43,6 +44,7 @@ struct ConvertSheet: View {
     @State private var platforms: Set<ConversionOutput>
     @State private var surveyOnly = false
     @State private var advanced = false
+    @State private var choosingIcon = false
 
     init(request: ConvertRequest, settings: AppSettings) {
         self.request = request
@@ -82,6 +84,21 @@ struct ConvertSheet: View {
                         }
                         TextField("App name", text: $options.appName, prompt: Text(game.scan.displayName))
                         TextField("Bundle ID", text: $options.bundleID, prompt: Text("Automatic"))
+                        LabeledContent {
+                            HStack {
+                                if !options.iconPath.isEmpty {
+                                    Button("Clear") { options.iconPath = "" }
+                                }
+                                Button("Choose…") { choosingIcon = true }
+                            }
+                        } label: {
+                            Text("App icon")
+                            Text(options.iconPath.isEmpty ? (game.scan.isUnencrypted ? "None: a dump has no icon, and a NUP may have none" : "The game's own")
+                                 : URL(fileURLWithPath: options.iconPath).lastPathComponent)
+                        }
+                        .fileImporter(isPresented: $choosingIcon, allowedContentTypes: [.jpeg, .png]) { result in
+                            if case .success(let url) = result { options.iconPath = url.path }
+                        }
                         if game.scan.chosenGame == nil {
                             TextField(text: $options.titleID, prompt: Text(game.scan.titleIDString ?? "Automatic")) {
                                 Text("Title ID")

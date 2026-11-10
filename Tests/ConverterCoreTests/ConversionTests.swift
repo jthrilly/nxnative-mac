@@ -18,10 +18,10 @@ struct ConversionTests {
     @Test func argumentsWithEveryOption() {
         var o = ConversionOptions()
         o.language = "ja"; o.package = "v327680"; o.appName = "My Game"; o.bundleID = "org.example.game"; o.allowDamaged = true
-        o.titleID = "0100ABCD00000000"; o.signingIdentity = "Developer ID Application: A (TEAM)"
+        o.titleID = "0100ABCD00000000"; o.iconPath = "/Pictures/icon.png"; o.signingIdentity = "Developer ID Application: A (TEAM)"
         #expect(ConversionCommand.arguments(script: script, folder: folder, keys: keys, options: o)
                 == base + ["-l", "ja", "-p", "v327680", "--app-name", "My Game", "--bundle-id", "org.example.game", "--allow-damaged",
-                           "--title-id", "0100ABCD00000000", "--mac-sign", "Developer ID Application: A (TEAM)"])
+                           "--title-id", "0100ABCD00000000", "--icon", "/Pictures/icon.png", "--mac-sign", "Developer ID Application: A (TEAM)"])
     }
 
     @Test func argumentsForAnXcodeProject() {

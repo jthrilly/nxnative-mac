@@ -87,7 +87,7 @@ option the app doesn't pass.
 Each game runs the checkout's script, one game at a time:
 
 ```
-<python> -u scripts/build_ipa_from_nsp.py <folder> -k <prod.keys> --platform mac-app --progress json -o <folder>/<name>.app [-l <language>] [-p <version>] [--app-name …] [--bundle-id …] [--allow-damaged] [--title-id …] [--mac-sign …] [--survey-only]
+<python> -u scripts/build_ipa_from_nsp.py <folder> -k <prod.keys> --platform mac-app --progress json -o <folder>/<name>.app [-l <language>] [-p <version>] [--app-name …] [--bundle-id …] [--allow-damaged] [--title-id …] [--icon …] [--mac-sign …] [--survey-only]
 ```
 
 How it runs:
@@ -102,7 +102,7 @@ How it runs:
 The pages:
 
 - **Convert**: the queue of game folders. A dropped or chosen folder opens the Convert sheet first: the platforms (Mac, iPhone & iPad, or both, a job each),
-  the language, Survey only for a game with no profile, and in Advanced the version, app name, bundle ID, Title ID (for a cartridge that holds two games) and damaged files; a folder of packages from two games shows each as a game of its own; each game also offers Port
+  the language, Survey only for a game with no profile, and in Advanced the version, app name, bundle ID, app icon (a JPEG or PNG; a dump has none of its own), Title ID (for a cartridge that holds two games) and damaged files; a folder of packages from two games shows each as a game of its own; each game also offers Port
   with an Agent… there. Nothing is queued or started until Convert, and the sheet remembers the platforms. A folder is scanned the way the script scans it (title ID, versions, DLC), then matched with nxnative's profiles: a
   tested version, an untested version, or no profile. Each game has its options (what to make, language, version, app name, bundle ID, damaged files), its stages with counts and an estimate of the time left (a stage that rebuilds the shader libraries after nxnative or the profile changed says so, and one that finished without what it makes, such as a pipeline archive, shows a warning while the build goes on), and the log.
 - **Library**: the nxnative game apps in the install folder, `/Applications` and `~/Applications`, and the games prepared as Xcode projects. Each shows the

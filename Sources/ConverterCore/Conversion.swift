@@ -16,6 +16,7 @@ public struct ConversionOptions: Sendable, Equatable, Codable {
     public var bundleID: String = ""
     public var allowDamaged: Bool = false
     public var titleID: String = ""   // the game to pack when the folder holds several (--title-id): 16 hex digits
+    public var iconPath: String = ""  // the app icon, a JPEG or PNG (--icon); empty: the game's own, which a dump never has and a NUP may lack
     public var signingIdentity: String = ""
     public var surveyOnly: Bool = false
     public var output: ConversionOutput = .macApp
@@ -31,6 +32,7 @@ public struct ConversionOptions: Sendable, Equatable, Codable {
         bundleID = c.lenient(String.self, .bundleID) ?? ""
         allowDamaged = c.lenient(Bool.self, .allowDamaged) ?? false
         titleID = c.lenient(String.self, .titleID) ?? ""
+        iconPath = c.lenient(String.self, .iconPath) ?? ""
         signingIdentity = c.lenient(String.self, .signingIdentity) ?? ""
         surveyOnly = c.lenient(Bool.self, .surveyOnly) ?? false
         output = c.lenient(ConversionOutput.self, .output) ?? .macApp
@@ -82,6 +84,7 @@ public enum ConversionCommand {
         }
         if options.allowDamaged { args.append("--allow-damaged") }
         if !options.titleID.isEmpty { args += ["--title-id", options.titleID] }
+        if !options.iconPath.isEmpty { args += ["--icon", options.iconPath] }
         switch options.output {
         case .macApp: if !options.signingIdentity.isEmpty { args += ["--mac-sign", options.signingIdentity] }
         case .xcodeProject: if !teamID.isEmpty { args += ["--team-id", teamID] }
