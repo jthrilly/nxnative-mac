@@ -26,21 +26,19 @@ struct ShellEnvironmentTests {
         #expect(env.path.prefix(3) == ["/Users/x/.pyenv/shims", "/usr/bin", "/opt/homebrew/bin"])
         #expect(env.path.filter { $0 == "/opt/homebrew/bin" }.count == 1)
         for p in ShellEnvironment.toolPaths + ["/bin", "/usr/sbin", "/sbin"] { #expect(env.path.contains(p)) }
-        #expect(ShellEnvironment.toolPaths.last?.hasSuffix("/.dotnet") == true && ShellEnvironment.toolPaths.last?.hasPrefix("/") == true)
         #expect(ShellEnvironment(variables: [:]).withToolPaths().path.contains("/usr/bin"))
     }
 
-    @Test func scriptToolPaths() {   // build_ipa_from_nsp.py: PATH = TOOL_PATHS + the PATH it is given
-        let env = ShellEnvironment(variables: ["PATH": "/Users/x/.dotnet-10:/usr/bin:/opt/homebrew/bin"]).withToolPaths().withScriptToolPaths()
-        #expect(Array(env.path.prefix(ShellEnvironment.toolPaths.count)) == ShellEnvironment.toolPaths)
-        #expect(Array(env.path.dropFirst(ShellEnvironment.toolPaths.count).prefix(2)) == ["/Users/x/.dotnet-10", "/usr/bin"])
+    @Test func scriptToolPaths() {   // build_ipa_from_nsp.py tool_env: PATH = the PATH it is given + TOOL_PATHS, so the caller's tools win
+        let env = ShellEnvironment(variables: ["PATH": "/Users/x/.pyenv/shims:/usr/bin"]).withScriptToolPaths()
+        #expect(env.path == ["/Users/x/.pyenv/shims", "/usr/bin"] + ShellEnvironment.toolPaths)
         #expect(Set(env.path).count == env.path.count)
     }
 
     @Test(.enabled(if: nxnativeCheckout != nil, "NXNATIVE_REPO names no nxnative checkout")) func toolPathsMatchTheScript() throws {
         let text = try String(contentsOf: try #require(nxnativeCheckout).appendingPathComponent("scripts/build_ipa_from_nsp.py"), encoding: .utf8)
-        #expect(text.contains("TOOL_PATHS = ['/opt/homebrew/bin', '/usr/local/bin', '/usr/local/share/dotnet', os.path.expanduser('~/.dotnet')]"))
-        #expect(text.contains("PATH=os.pathsep.join(TOOL_PATHS + ["))   // in front of the PATH the script gets
+        #expect(text.contains("TOOL_PATHS = ['/opt/homebrew/bin', '/usr/local/bin']"))
+        #expect(text.contains("PATH=os.pathsep.join([environ.get('PATH') or '/usr/bin:/bin:/usr/sbin:/sbin'] + TOOL_PATHS)"))   // after the PATH the script gets
     }
 
     @Test func which() throws {

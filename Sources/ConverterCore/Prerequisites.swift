@@ -5,7 +5,7 @@
 import Foundation
 
 public enum PrerequisiteID: String, Sendable, CaseIterable, Codable {
-    case appleSilicon, xcode, metalToolchain, homebrew, git, brewTools, glslang, dotnet, python, pythonModules, nsz, repository, keys, claudeCode, codex
+    case appleSilicon, xcode, metalToolchain, homebrew, git, brewTools, glslang, python, pythonModules, nsz, repository, keys, claudeCode, codex
 }
 
 public enum PrerequisiteState: Sendable, Equatable { case ok, missing, warning, unknown }
@@ -118,7 +118,6 @@ public struct PrerequisiteChecker: Sendable {
         case .git: return "Git"
         case .brewTools: return "zstd and SPIRV-Cross"
         case .glslang: return "glslang (OpenGL games)"
-        case .dotnet: return ".NET SDK 10"
         case .python: return "Python 3"
         case .pythonModules: return "Python modules"
         case .nsz: return "nsz (NSZ / XCZ files)"
@@ -167,14 +166,6 @@ public struct PrerequisiteChecker: Sendable {
             c.required = false
             if let p = tools.which("glslangValidator") { return result(.ok, p) }
             return result(.warning, "Only OpenGL games need glslangValidator", [.run(title: "Install glslang", shellCommand: "brew install glslang")])
-        case .dotnet:
-            guard tools.which("dotnet") != nil, let r = await run("dotnet", ["--list-sdks"]) else {
-                return result(.missing, ".NET is not installed", [.terminal(title: "Install the .NET SDK", shellCommand: "brew install --cask dotnet-sdk")])
-            }
-            let sdks = r.stdout.split(separator: "\n").map { String($0.prefix { $0 != " " }) }.filter { !$0.isEmpty }
-            if let v = sdks.last(where: { $0.hasPrefix("10.") }) { return result(.ok, ".NET SDK " + v) }
-            return sdks.isEmpty ? result(.missing, "No .NET SDK is installed", [.terminal(title: "Install the .NET SDK", shellCommand: "brew install --cask dotnet-sdk")])
-                : result(.missing, "The installed .NET SDKs (\(sdks.joined(separator: ", "))) are older than 10", [.terminal(title: "Update the .NET SDK", shellCommand: "brew upgrade --cask dotnet-sdk")])
         case .python:
             guard let p = await probe.value else {
                 return result(.missing, "\(python) does not run", Self.urlFix("Download Python", "https://www.python.org/downloads/macos/"))

@@ -116,7 +116,7 @@ The pages:
 - **Setup**: what a conversion needs, each item with its fix. Install Missing runs the fixes that need neither a password nor administrator rights. The items:
   - Apple silicon, Xcode and its license, the Metal Toolchain;
   - Homebrew, git, zstd, spirv-cross, glslang;
-  - the .NET 10 SDK, Python 3.12 or later and its modules (Capstone 5.x, which the NSP script requires), nsz;
+  - Python 3.12 or later and its modules (Capstone 5.x, which the NSP script requires), nsz;
   - the nxnative checkout and `prod.keys`;
   - Claude Code and Codex, for ports.
 

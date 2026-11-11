@@ -1,6 +1,6 @@
-// The user's login-shell environment: an app started from Finder or the Dock does not get the shell's PATH, and pyenv, Homebrew and the .NET SDK are set up there.
-// Children get the shell's PATH with the NSP script's TOOL_PATHS and the system folders after it. The script itself puts TOOL_PATHS in front of the PATH it gets
-// (scripts/build_ipa_from_nsp.py main), so the checks of the tools it runs look them up in that order (withScriptToolPaths)
+// The user's login-shell environment: an app started from Finder or the Dock does not get the shell's PATH, and pyenv and Homebrew are set up there.
+// Children get the shell's PATH with the NSP script's TOOL_PATHS and the system folders after it. The script itself puts TOOL_PATHS after the PATH it gets
+// (scripts/build_ipa_from_nsp.py tool_env), so the checks of the tools it runs look them up in that order (withScriptToolPaths)
 import Foundation
 
 public struct ShellEnvironment: Sendable, Equatable {
@@ -12,7 +12,7 @@ public struct ShellEnvironment: Sendable, Equatable {
 
     public init(variables: [String: String]) { self.variables = variables }
 
-    static let toolPaths: [String] = ["/opt/homebrew/bin", "/usr/local/bin", "/usr/local/share/dotnet", NSString(string: "~/.dotnet").expandingTildeInPath]
+    static let toolPaths: [String] = ["/opt/homebrew/bin", "/usr/local/bin"]
 
     public static func resolve() async -> ShellEnvironment {
         let base = ProcessInfo.processInfo.environment
@@ -38,8 +38,8 @@ public struct ShellEnvironment: Sendable, Equatable {
 
     func withToolPaths() -> ShellEnvironment { withPath(path + Self.toolPaths + Self.systemPaths) }
 
-    /// The PATH the NSP script runs its tools with: TOOL_PATHS, then the PATH it was given
-    func withScriptToolPaths() -> ShellEnvironment { withPath(Self.toolPaths + path) }
+    /// The PATH the NSP script runs its tools with: the PATH it was given, then TOOL_PATHS
+    func withScriptToolPaths() -> ShellEnvironment { withPath(path + Self.toolPaths) }
 
     private func withPath(_ order: [String]) -> ShellEnvironment {
         var dirs: [String] = []
