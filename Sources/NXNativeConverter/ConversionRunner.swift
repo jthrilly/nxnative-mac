@@ -57,7 +57,7 @@ extension AppModel {
         batcher.flush()
         job.process = nil
 
-        if job.cancelRequested || status == 130 { return conclude(job, .cancelled, nil) }
+        if job.cancelRequested || FailureTracker.isStop(status: status) { return conclude(job, .cancelled, nil) }
         guard status == 0 else { return conclude(job, .failed, job.failureMessage(status: status)) }
         job.buildFinished()
         if options.surveyOnly {

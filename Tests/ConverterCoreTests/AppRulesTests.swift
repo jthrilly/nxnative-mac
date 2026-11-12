@@ -33,6 +33,12 @@ struct FailureTrackerTests {
         #expect(t.message(status: 2, lastError: nil) == "The NSP script refused its arguments.")
     }
 
+    @Test func interruptAndSIGTERMAreStops() {   // docs/frontends.md: 130 when interrupted, 143 when stopped by SIGTERM
+        #expect(FailureTracker.isStop(status: 130))
+        #expect(FailureTracker.isStop(status: 143))
+        #expect(!FailureTracker.isStop(status: 0) && !FailureTracker.isStop(status: 1) && !FailureTracker.isStop(status: 128 + SIGKILL))
+    }
+
     @Test func signalStatusNamesTheSignal() {
         let t = FailureTracker()
         let killed = t.message(status: 128 + SIGKILL, lastError: "stale")
